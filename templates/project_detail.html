@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="section-head"><div><h1>{{ project.title }}</h1><div class="muted">{{ project.reference or 'Geen referentie' }}</div></div><span class="status {% if project.status=='Wacht op info' %}warn{% endif %}">{{ project.status }}</span></div>
+<div class="detail">
+<div class="card">
+<h2>Werfgegevens</h2>
+<p><b>Partner:</b> {{ project.company.name }}</p>
+<p><b>Adres:</b> {{ project.address or '-' }}</p>
+<p><b>Contact:</b> {{ project.contact_name or '-' }} · {{ project.phone or '-' }}</p>
+<p><b>Gewenste datum:</b> {{ project.desired_date or '-' }}</p>
+<p><b>Type:</b> {{ project.job_type or '-' }}</p>
+<p><b>Prioriteit:</b> {{ project.priority }}</p>
+<p><b>Omschrijving:</b><br>{{ project.description or '-' }}</p>
+<h2>Documenten</h2>
+{% for d in project.documents %}
+<div class="doc"><a href="{{ url_for('download_document', doc_id=d.id) }}">📄 {{ d.original_name }}</a></div>
+{% else %}<div class="muted">Geen documenten toegevoegd.</div>{% endfor %}
+</div>
+{% if me.role == 'huys_admin' %}
+<div class="card"><h2>HUYS beheer</h2>
+<form method="post" action="{{ url_for('change_status', project_id=project.id) }}">
+<label>Status</label>
+<select name="status">
+{% for s in ['Nieuw','Bekijken','Wacht op info','Goedgekeurd','Ingepland','In uitvoering','Afgewerkt','Gefactureerd'] %}
+<option {% if s==project.status %}selected{% endif %}>{{ s }}</option>
+{% endfor %}
+</select>
+<button class="primary" type="submit">Status opslaan</button>
+</form></div>
+{% endif %}
+</div>
+{% endblock %}
