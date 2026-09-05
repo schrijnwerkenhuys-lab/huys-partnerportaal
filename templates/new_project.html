@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Nieuwe werf doorgeven</h1>
+<form class="card formgrid" method="post" enctype="multipart/form-data">
+<div><label>Project / klant *</label><input name="title" required></div>
+<div><label>Eigen referentie</label><input name="reference"></div>
+<div><label>Werfadres</label><input name="address"></div>
+<div><label>Contactpersoon</label><input name="contact_name"></div>
+<div><label>Telefoon</label><input name="phone"></div>
+<div><label>Gewenste uitvoerdatum</label><input name="desired_date" type="date"></div>
+<div><label>Type opdracht</label><select name="job_type"><option>Ramen</option><option>Deuren</option><option>Poorten</option><option>Binnenschrijnwerk</option><option>Herstelling</option><option>Andere</option></select></div>
+<div><label>Prioriteit</label><select name="priority"><option>Normaal</option><option>Dringend</option></select></div>
+<div class="full"><label>Omschrijving</label><textarea name="description" rows="5"></textarea></div>
+<div class="full"><label>Documenten / foto's</label><input type="file" name="documents" multiple></div>
+<div class="full"><button class="primary" type="submit">Werf indienen</button></div>
+</form>
+{% endblock %}
