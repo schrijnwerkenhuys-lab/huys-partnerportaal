@@ -18,10 +18,14 @@
 </div>
 {% if me.role == 'huys_admin' %}
 <div class="card"><h2>HUYS beheer</h2>
+<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px;">
+<form method="post" action="{{ url_for('accept_project', project_id=project.id) }}"><button class="primary" type="submit">✓ Werf accepteren</button></form>
+<form method="post" action="{{ url_for('reject_project', project_id=project.id) }}" onsubmit="return confirm('Deze werf weigeren?');"><button type="submit" style="background:#8b1e1e;color:white;">✕ Werf weigeren</button></form>
+</div>
 <form method="post" action="{{ url_for('change_status', project_id=project.id) }}">
 <label>Status</label>
 <select name="status">
-{% for s in ['Nieuw','Bekijken','Wacht op info','Goedgekeurd','Ingepland','In uitvoering','Afgewerkt','Gefactureerd'] %}
+{% for s in ['Nieuw','Bekijken','Wacht op info','Goedgekeurd','Geweigerd','Ingepland','In uitvoering','Afgewerkt','Gefactureerd'] %}
 <option {% if s==project.status %}selected{% endif %}>{{ s }}</option>
 {% endfor %}
 </select>
