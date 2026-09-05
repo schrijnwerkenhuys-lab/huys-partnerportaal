@@ -14,11 +14,15 @@
       <a href="{{ url_for('dashboard') }}">Dashboard</a>
       {% if me.role != 'huys_admin' %}<a href="{{ url_for('new_project') }}">Nieuwe werf</a>{% endif %}
       {% if me.role == 'huys_admin' %}<a href="{{ url_for('companies') }}">Partnerbedrijven</a>{% endif %}
+      {% if me.role == 'huys_admin' %}<a href="{{ url_for('password_requests') }}">Wachtwoordaanvragen{% if reset_request_count %} ({{ reset_request_count }}){% endif %}</a>{% endif %}
       <a href="{{ url_for('logout') }}">Uitloggen</a>
     </nav>
   </aside>
   <main>
     <header><div><strong>{{ me.name }}</strong><div class="muted">{{ me.company.name if me.company else 'Schrijnwerken HUYS' }}</div></div></header>
+    {% if me.role == 'huys_admin' and reset_request_count %}
+      <div class="flash error">{{ reset_request_count }} wachtwoordaanvraag{% if reset_request_count != 1 %}en{% endif %} wacht{% if reset_request_count == 1 %}t{% else %}en{% endif %} op behandeling. <a href="{{ url_for('password_requests') }}"><strong>Bekijken</strong></a></div>
+    {% endif %}
     {% with messages = get_flashed_messages(with_categories=true) %}
       {% for cat,msg in messages %}<div class="flash {{ cat }}">{{ msg }}</div>{% endfor %}
     {% endwith %}
