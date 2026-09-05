@@ -1,4 +1,5 @@
 import os
+import shutil
 from pathlib import Path
 from functools import wraps
 from flask import Flask, render_template, request, redirect, url_for, session, flash, send_from_directory, abort
@@ -61,6 +62,13 @@ def project_or_404(pid):
     return p
 def allowed(filename): return "." in filename and filename.rsplit(".",1)[1].lower() in ALLOWED_EXTENSIONS
 
+def create_partner(company_name,name,email,password):
+    if Company.query.filter_by(name=company_name).first(): return "Dit partnerbedrijf bestaat al."
+    if User.query.filter_by(email=email).first(): return "Dit e-mailadres is al in gebruik."
+    c=Company(name=company_name); db.session.add(c); db.session.flush()
+    db.session.add(User(company_id=c.id,name=name,email=email,password_hash=generate_password_hash(password),role="partner_admin")); db.session.commit()
+    return None
+
 @app.context_processor
 def inject_user(): return {"me":current_user()}
 @app.route("/health")
@@ -74,12 +82,26 @@ def login():
         if u and check_password_hash(u.password_hash,password): session.clear(); session["user_id"]=u.id; return redirect(url_for("dashboard"))
         flash("Ongeldige login.","error")
     return render_template("login.html")
+@app.route("/register",methods=["GET","POST"])
+def register():
+    if current_user(): return redirect(url_for("dashboard"))
+    if request.method=="POST":
+        company_name=request.form.get("company_name","").strip(); name=request.form.get("name","").strip(); email=request.form.get("email","").strip().lower(); password=request.form.get("password",""); confirm=request.form.get("confirm_password","")
+        if not company_name or not name or not email or len(password)<8:
+            flash("Vul alle velden in. Het wachtwoord moet minstens 8 tekens bevatten.","error")
+        elif password!=confirm:
+            flash("De wachtwoorden zijn niet gelijk.","error")
+        else:
+            error=create_partner(company_name,name,email,password)
+            if error: flash(error,"error")
+            else: flash("Account aangemaakt. Je kunt nu aanmelden.","success"); return redirect(url_for("login"))
+    return render_template("register.html")
 @app.route("/logout")
 def logout(): session.clear(); return redirect(url_for("login"))
 @app.route("/dashboard")
 @login_required
 def dashboard():
-    u=current_user(); q=Project.query if u.role=="huys_admin" else Project.query.filter_by(company_id=u.company_id); projects=q.order_by(Project.id.desc()).all(); stats={"active":sum(p.status not in ("Afgewerkt","Gefactureerd") for p in projects),"new":sum(p.status=="Nieuw" for p in projects),"info":sum(p.status=="Wacht op info" for p in projects),"done":sum(p.status=="Afgewerkt" for p in projects)}; return render_template("dashboard.html",projects=projects,stats=stats)
+    u=current_user(); q=Project.query if u.role=="huys_admin" else Project.query.filter_by(company_id=u.company_id); projects=q.order_by(Project.id.desc()).all(); stats={"active":sum(p.status not in ("Afgewerkt","Gefactureerd","Geweigerd") for p in projects),"new":sum(p.status=="Nieuw" for p in projects),"info":sum(p.status=="Wacht op info" for p in projects),"done":sum(p.status=="Afgewerkt" for p in projects)}; return render_template("dashboard.html",projects=projects,stats=stats)
 @app.route("/projects/new",methods=["GET","POST"])
 @login_required
 def new_project():
@@ -92,7 +114,7 @@ def new_project():
         for f in request.files.getlist("documents"):
             if not f or not f.filename or not allowed(f.filename): continue
             original=secure_filename(f.filename); folder=UPLOAD_ROOT/str(u.company_id)/str(p.id); folder.mkdir(parents=True,exist_ok=True); stored=f"{p.id}_{len(p.documents)+1}_{original}"; f.save(folder/stored); db.session.add(Document(project_id=p.id,original_name=original,stored_name=stored))
-        db.session.commit(); flash("Werf succesvol ingediend.","success"); return redirect(url_for("project_detail",project_id=p.id))
+        db.session.commit(); flash("Werf succesvol ingediend en wacht op beoordeling door HUYS.","success"); return redirect(url_for("project_detail",project_id=p.id))
     return render_template("new_project.html")
 @app.route("/projects/<int:project_id>")
 @login_required
@@ -102,9 +124,21 @@ def project_detail(project_id): return render_template("project_detail.html",pro
 def change_status(project_id):
     p=db.session.get(Project,project_id)
     if not p: abort(404)
-    statuses=["Nieuw","Bekijken","Wacht op info","Goedgekeurd","Ingepland","In uitvoering","Afgewerkt","Gefactureerd"]; status=request.form.get("status")
+    statuses=["Nieuw","Bekijken","Wacht op info","Goedgekeurd","Geweigerd","Ingepland","In uitvoering","Afgewerkt","Gefactureerd"]; status=request.form.get("status")
     if status not in statuses: abort(400)
-    p.status=status; db.session.commit(); return redirect(url_for("project_detail",project_id=p.id))
+    p.status=status; db.session.commit(); flash(f"Werfstatus gewijzigd naar {status}.","success"); return redirect(url_for("project_detail",project_id=p.id))
+@app.route("/projects/<int:project_id>/accept",methods=["POST"])
+@admin_required
+def accept_project(project_id):
+    p=db.session.get(Project,project_id)
+    if not p: abort(404)
+    p.status="Goedgekeurd"; db.session.commit(); flash("Werf geaccepteerd.","success"); return redirect(url_for("project_detail",project_id=p.id))
+@app.route("/projects/<int:project_id>/reject",methods=["POST"])
+@admin_required
+def reject_project(project_id):
+    p=db.session.get(Project,project_id)
+    if not p: abort(404)
+    p.status="Geweigerd"; db.session.commit(); flash("Werf geweigerd.","success"); return redirect(url_for("project_detail",project_id=p.id))
 @app.route("/documents/<int:doc_id>")
 @login_required
 def download_document(doc_id):
@@ -117,10 +151,22 @@ def companies():
     if request.method=="POST":
         company_name=request.form.get("company_name","").strip(); name=request.form.get("name","").strip(); email=request.form.get("email","").strip().lower(); password=request.form.get("password","")
         if not company_name or not name or not email or len(password)<8: flash("Vul alle velden correct in. Wachtwoord minimaal 8 tekens.","error"); return redirect(url_for("companies"))
-        if Company.query.filter_by(name=company_name).first(): flash("Dit partnerbedrijf bestaat al.","error"); return redirect(url_for("companies"))
-        if User.query.filter_by(email=email).first(): flash("Dit e-mailadres is al in gebruik.","error"); return redirect(url_for("companies"))
-        c=Company(name=company_name); db.session.add(c); db.session.flush(); db.session.add(User(company_id=c.id,name=name,email=email,password_hash=generate_password_hash(password),role="partner_admin")); db.session.commit(); flash("Partner en gebruiker succesvol aangemaakt.","success"); return redirect(url_for("companies"))
+        error=create_partner(company_name,name,email,password)
+        if error: flash(error,"error")
+        else: flash("Partner en gebruiker succesvol aangemaakt.","success")
+        return redirect(url_for("companies"))
     rows=[{"company":c,"users":User.query.filter_by(company_id=c.id).count(),"projects":Project.query.filter_by(company_id=c.id).count()} for c in Company.query.order_by(Company.name).all()]; return render_template("companies.html",rows=rows)
+@app.route("/admin/companies/<int:company_id>/delete",methods=["POST"])
+@admin_required
+def delete_company(company_id):
+    c=db.session.get(Company,company_id)
+    if not c: abort(404)
+    company_name=c.name; projects=Project.query.filter_by(company_id=c.id).all()
+    for p in projects: db.session.delete(p)
+    User.query.filter_by(company_id=c.id).delete(synchronize_session=False)
+    db.session.delete(c); db.session.commit()
+    shutil.rmtree(UPLOAD_ROOT/str(company_id),ignore_errors=True)
+    flash(f"Partner {company_name} en alle gekoppelde accounts en werven zijn verwijderd.","success"); return redirect(url_for("companies"))
 @app.errorhandler(403)
 def forbidden(_): return render_template("error.html",code=403,message="Geen toegang."),403
 @app.errorhandler(404)
