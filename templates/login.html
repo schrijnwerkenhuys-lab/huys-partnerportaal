@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block public %}
+<div class="login-bg"><div class="login-card">
+  <div class="brand dark">HUYS<span>PARTNERPORTAAL</span></div>
+  <h1>Aanmelden</h1>
+  <p class="muted">Beveiligde toegang voor partnerbedrijven en HUYS.</p>
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for cat,msg in messages %}<div class="flash {{ cat }}">{{ msg }}</div>{% endfor %}
+  {% endwith %}
+  <form method="post">
+    <label>E-mail</label><input type="email" name="email" required>
+    <label>Wachtwoord</label><input type="password" name="password" required>
+    <button class="primary" type="submit">Aanmelden</button>
+  </form>
+</div></div>
+{% endblock %}
