@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Partnerbedrijven</h1>
+<div class="table-wrap"><table><thead><tr><th>Bedrijf</th><th>Gebruikers</th><th>Werven</th></tr></thead><tbody>
+{% for r in rows %}<tr><td><strong>{{ r.company.name }}</strong></td><td>{{ r.users }}</td><td>{{ r.projects }}</td></tr>{% endfor %}
+</tbody></table></div>
+<p class="muted">Gebruikers uitnodigen en rechten per partner beheren kunnen we in de volgende fase toevoegen.</p>
+{% endblock %}
