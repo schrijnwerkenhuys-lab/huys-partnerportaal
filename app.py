@@ -1,12 +1,14 @@
 import os
 import shutil
 import smtplib
+from datetime import datetime
 from email.message import EmailMessage
 from pathlib import Path
 from functools import wraps
 from flask import Flask, render_template, request, redirect, url_for, session, flash, send_from_directory, abort
 from flask_sqlalchemy import SQLAlchemy
 from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
+from sqlalchemy import inspect, text
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 
@@ -38,9 +40,11 @@ class Company(db.Model):
 class User(db.Model):
     id=db.Column(db.Integer,primary_key=True); company_id=db.Column(db.Integer,db.ForeignKey("company.id"),nullable=True); name=db.Column(db.String(120),nullable=False); email=db.Column(db.String(180),unique=True,nullable=False); password_hash=db.Column(db.String(255),nullable=False); role=db.Column(db.String(30),nullable=False,default="partner_user"); company=db.relationship("Company")
 class Project(db.Model):
-    id=db.Column(db.Integer,primary_key=True); company_id=db.Column(db.Integer,db.ForeignKey("company.id"),nullable=False,index=True); title=db.Column(db.String(180),nullable=False); reference=db.Column(db.String(120)); address=db.Column(db.String(255)); contact_name=db.Column(db.String(160)); phone=db.Column(db.String(80)); desired_date=db.Column(db.String(30)); job_type=db.Column(db.String(100)); priority=db.Column(db.String(30),nullable=False,default="Normaal"); description=db.Column(db.Text); status=db.Column(db.String(60),nullable=False,default="Nieuw"); company=db.relationship("Company"); documents=db.relationship("Document",backref="project",cascade="all, delete-orphan")
+    id=db.Column(db.Integer,primary_key=True); company_id=db.Column(db.Integer,db.ForeignKey("company.id"),nullable=False,index=True); title=db.Column(db.String(180),nullable=False); reference=db.Column(db.String(120)); address=db.Column(db.String(255)); contact_name=db.Column(db.String(160)); phone=db.Column(db.String(80)); desired_date=db.Column(db.String(30)); start_date=db.Column(db.String(30)); job_type=db.Column(db.String(100)); priority=db.Column(db.String(30),nullable=False,default="Normaal"); description=db.Column(db.Text); status=db.Column(db.String(60),nullable=False,default="Nieuw"); company=db.relationship("Company"); documents=db.relationship("Document",backref="project",cascade="all, delete-orphan"); messages=db.relationship("ProjectMessage",backref="project",cascade="all, delete-orphan",order_by="ProjectMessage.id")
 class Document(db.Model):
     id=db.Column(db.Integer,primary_key=True); project_id=db.Column(db.Integer,db.ForeignKey("project.id"),nullable=False,index=True); original_name=db.Column(db.String(255),nullable=False); stored_name=db.Column(db.String(255),nullable=False)
+class ProjectMessage(db.Model):
+    id=db.Column(db.Integer,primary_key=True); project_id=db.Column(db.Integer,db.ForeignKey("project.id"),nullable=False,index=True); user_id=db.Column(db.Integer,db.ForeignKey("user.id"),nullable=True); author_name=db.Column(db.String(120),nullable=False); author_role=db.Column(db.String(30),nullable=False); message=db.Column(db.Text,nullable=False); created_at=db.Column(db.DateTime,nullable=False,default=datetime.utcnow); user=db.relationship("User")
 
 def current_user():
     uid=session.get("user_id"); return db.session.get(User,uid) if uid else None
@@ -101,6 +105,33 @@ def create_partner(company_name,name,email,password):
     db.session.add(User(company_id=c.id,name=name,email=email,password_hash=generate_password_hash(password),role="partner_admin")); db.session.commit()
     return None
 
+def smtp_settings():
+    return {
+        "host":os.environ.get("SMTP_HOST","").strip(),
+        "port":int(os.environ.get("SMTP_PORT","587")),
+        "username":os.environ.get("SMTP_USERNAME","").strip(),
+        "password":os.environ.get("SMTP_PASSWORD",""),
+        "sender":os.environ.get("SMTP_FROM",os.environ.get("SMTP_USERNAME","")).strip(),
+        "use_tls":os.environ.get("SMTP_USE_TLS","1")=="1"
+    }
+
+def send_email(recipients,subject,body):
+    recipients=sorted({r.strip().lower() for r in recipients if r and r.strip()})
+    cfg=smtp_settings()
+    if not recipients or not cfg["host"] or not cfg["sender"]:
+        app.logger.error("SMTP is niet volledig geconfigureerd; e-mail kon niet worden verstuurd.")
+        return False
+    try:
+        with smtplib.SMTP(cfg["host"],cfg["port"],timeout=15) as server:
+            if cfg["use_tls"]: server.starttls()
+            if cfg["username"] and cfg["password"]: server.login(cfg["username"],cfg["password"])
+            for recipient in recipients:
+                msg=EmailMessage(); msg["Subject"]=subject; msg["From"]=cfg["sender"]; msg["To"]=recipient; msg.set_content(body); server.send_message(msg)
+        return True
+    except Exception:
+        app.logger.exception("Fout bij versturen e-mail")
+        return False
+
 def reset_serializer():
     return URLSafeTimedSerializer(app.config["SECRET_KEY"], salt="huys-password-reset")
 
@@ -118,25 +149,33 @@ def user_from_reset_token(token):
     return user
 
 def send_reset_email(user):
-    host=os.environ.get("SMTP_HOST","").strip(); port=int(os.environ.get("SMTP_PORT","587")); username=os.environ.get("SMTP_USERNAME","").strip(); password=os.environ.get("SMTP_PASSWORD",""); sender=os.environ.get("SMTP_FROM",username).strip(); use_tls=os.environ.get("SMTP_USE_TLS","1")=="1"
-    if not host or not sender:
-        app.logger.error("SMTP is niet geconfigureerd; wachtwoordresetmail kon niet worden verstuurd.")
-        return False
     token=reset_token_for(user)
     base=os.environ.get("PUBLIC_BASE_URL","").rstrip("/")
     path=url_for("reset_password",token=token)
     reset_url=f"{base}{path}" if base else url_for("reset_password",token=token,_external=True)
-    msg=EmailMessage(); msg["Subject"]="Wachtwoord opnieuw instellen - HUYS Partnerportaal"; msg["From"]=sender; msg["To"]=user.email
-    msg.set_content(f"Beste {user.name},\n\nJe hebt gevraagd om je wachtwoord voor het HUYS Partnerportaal opnieuw in te stellen.\n\nGebruik deze link binnen 1 uur:\n{reset_url}\n\nHeb je dit niet aangevraagd? Dan hoef je niets te doen.\n\nMet vriendelijke groet,\nSchrijnwerken HUYS")
-    try:
-        with smtplib.SMTP(host,port,timeout=15) as server:
-            if use_tls: server.starttls()
-            if username and password: server.login(username,password)
-            server.send_message(msg)
-        return True
-    except Exception:
-        app.logger.exception("Fout bij versturen wachtwoordresetmail")
-        return False
+    body=f"Beste {user.name},\n\nJe hebt gevraagd om je wachtwoord voor het HUYS Partnerportaal opnieuw in te stellen.\n\nGebruik deze link binnen 1 uur:\n{reset_url}\n\nHeb je dit niet aangevraagd? Dan hoef je niets te doen.\n\nMet vriendelijke groet,\nSchrijnwerken HUYS"
+    return send_email([user.email],"Wachtwoord opnieuw instellen - HUYS Partnerportaal",body)
+
+def project_recipients(project):
+    users=User.query.filter((User.role=="huys_admin") | (User.company_id==project.company_id)).all()
+    return [u.email for u in users if u.email]
+
+def send_project_message_email(project,entry):
+    base=os.environ.get("PUBLIC_BASE_URL","").rstrip("/")
+    path=url_for("project_detail",project_id=project.id)
+    project_url=f"{base}{path}" if base else url_for("project_detail",project_id=project.id,_external=True)
+    role="HUYS" if entry.author_role=="huys_admin" else project.company.name
+    subject=f"Nieuw werfverslag - {project.title}"
+    body=f"Er is een nieuw bericht toegevoegd aan de werf.\n\nWerf: {project.title}\nPartner: {project.company.name}\nVan: {entry.author_name} ({role})\n\nBericht / werfverslag:\n{entry.message}\n\nBekijk de werf:\n{project_url}\n\nMet vriendelijke groet,\nSchrijnwerken HUYS"
+    return send_email(project_recipients(project),subject,body)
+
+def ensure_schema():
+    inspector=inspect(db.engine)
+    if "project" in inspector.get_table_names():
+        columns={c["name"] for c in inspector.get_columns("project")}
+        if "start_date" not in columns:
+            with db.engine.begin() as conn:
+                conn.execute(text("ALTER TABLE project ADD COLUMN start_date VARCHAR(30)"))
 
 @app.context_processor
 def inject_user(): return {"me":current_user()}
@@ -228,6 +267,27 @@ def add_project_documents(project_id):
     else:
         db.session.rollback(); flash("Geen geldige bijlagen geselecteerd.","error")
     return redirect(url_for("project_detail",project_id=p.id))
+@app.route("/projects/<int:project_id>/communication",methods=["POST"])
+@login_required
+def add_project_message(project_id):
+    p=project_or_404(project_id); u=current_user(); message=request.form.get("message","").strip()
+    if not message:
+        flash("Vul een bericht of werfverslag in.","error"); return redirect(url_for("project_detail",project_id=p.id))
+    if len(message)>10000:
+        flash("Het bericht is te lang. Gebruik maximaal 10.000 tekens.","error"); return redirect(url_for("project_detail",project_id=p.id))
+    entry=ProjectMessage(project_id=p.id,user_id=u.id,author_name=u.name,author_role=u.role,message=message)
+    db.session.add(entry); db.session.commit()
+    mailed=send_project_message_email(p,entry)
+    if mailed: flash("Bericht / werfverslag opgeslagen en per e-mail verstuurd.","success")
+    else: flash("Bericht / werfverslag opgeslagen, maar de e-mail kon niet worden verstuurd.","error")
+    return redirect(url_for("project_detail",project_id=p.id))
+@app.route("/projects/<int:project_id>/start-date",methods=["POST"])
+@admin_required
+def set_start_date(project_id):
+    p=db.session.get(Project,project_id)
+    if not p: abort(404)
+    p.start_date=request.form.get("start_date","").strip()
+    db.session.commit(); flash("Effectieve startdatum opgeslagen.","success"); return redirect(url_for("project_detail",project_id=p.id))
 @app.route("/projects/<int:project_id>/status",methods=["POST"])
 @admin_required
 def change_status(project_id):
@@ -290,6 +350,7 @@ def bootstrap_admin():
     db.session.add(User(name=name,email=email,password_hash=generate_password_hash(password),role="huys_admin",company_id=None)); db.session.commit()
 with app.app_context():
     db.create_all()
+    ensure_schema()
     if os.environ.get("SEED_DEMO_DATA","0")=="1": seed_demo_data()
     bootstrap_admin()
 if __name__=="__main__": app.run(host="0.0.0.0",port=int(os.environ.get("PORT","5000")),debug=os.environ.get("FLASK_DEBUG","0")=="1")
