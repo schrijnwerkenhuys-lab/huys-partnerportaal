@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="section-head"><div><h1>Werf aanpassen</h1><div class="muted">{{ project.title }}</div></div></div>
+<form class="card formgrid" method="post" enctype="multipart/form-data">
+<div><label>Project / klant *</label><input name="title" value="{{ project.title }}" required></div>
+<div><label>Eigen referentie</label><input name="reference" value="{{ project.reference or '' }}"></div>
+<div><label>Werfadres</label><input name="address" value="{{ project.address or '' }}"></div>
+<div><label>Contactpersoon</label><input name="contact_name" value="{{ project.contact_name or '' }}"></div>
+<div><label>Telefoon</label><input name="phone" value="{{ project.phone or '' }}"></div>
+<div><label>Gewenste uitvoerdatum</label><input name="desired_date" type="date" value="{{ project.desired_date or '' }}"></div>
+<div><label>Type opdracht</label><select name="job_type">{% for t in ['Ramen','Deuren','Poorten','Binnenschrijnwerk','Herstelling','Andere'] %}<option {% if project.job_type==t %}selected{% endif %}>{{ t }}</option>{% endfor %}</select></div>
+<div><label>Prioriteit</label><select name="priority">{% for p in ['Normaal','Dringend'] %}<option {% if project.priority==p %}selected{% endif %}>{{ p }}</option>{% endfor %}</select></div>
+<div class="full"><label>Omschrijving</label><textarea name="description" rows="5">{{ project.description or '' }}</textarea></div>
+<div class="full"><label>Extra documenten / foto's toevoegen</label><input type="file" name="documents" multiple></div>
+<div class="full" style="display:flex;gap:10px;flex-wrap:wrap;"><button class="primary" type="submit">Wijzigingen opslaan</button><a href="{{ url_for('project_detail', project_id=project.id) }}" class="button">Annuleren</a></div>
+</form>
+{% endblock %}
