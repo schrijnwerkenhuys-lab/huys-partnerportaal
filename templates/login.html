@@ -2,7 +2,29 @@
 {% block title %}Welkom | HUYS Partnerportaal{% endblock %}
 {% block public %}
 <div class="huys-auth-page">
-  <section class="huys-auth-visual" aria-hidden="true"></section>
+  <section class="huys-auth-visual">
+    <img class="huys-auth-left-logo" src="{{ url_for('static', filename='huys-logo.svg') }}" alt="Schrijnwerken HUYS - maatwerk dat leeft">
+
+    <div class="huys-auth-copy">
+      <h2>Samen bouwen<br><span>aan sterke projecten</span></h2>
+      <div class="huys-benefits">
+        <div class="huys-benefit">
+          <div class="huys-benefit-icon">▱</div>
+          <div><strong>Werfopvolging</strong><small>Altijd alle info op één plaats</small></div>
+        </div>
+        <div class="huys-benefit">
+          <div class="huys-benefit-icon">◌</div>
+          <div><strong>Duidelijke communicatie</strong><small>Snel en overzichtelijk</small></div>
+        </div>
+        <div class="huys-benefit">
+          <div class="huys-benefit-icon">♙♙</div>
+          <div><strong>Samen sterker</strong><small>Met onze partners</small></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="huys-services">RAMEN <span>|</span> DEUREN <span>|</span> POORTEN <span>|</span> BINNEN- EN BUITENSCHRIJNWERK</div>
+  </section>
 
   <section class="huys-auth-panel">
     <div class="huys-auth-card">
