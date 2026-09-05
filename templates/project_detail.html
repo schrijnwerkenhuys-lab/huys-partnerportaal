@@ -11,6 +11,7 @@
 <p><b>Adres:</b> {{ project.address or '-' }}</p>
 <p><b>Contact:</b> {{ project.contact_name or '-' }} · {{ project.phone or '-' }}</p>
 <p><b>Gewenste datum:</b> {{ project.desired_date or '-' }}</p>
+<p><b>Effectieve startdatum:</b> {{ project.start_date or 'Nog niet ingepland' }}</p>
 <p><b>Type:</b> {{ project.job_type or '-' }}</p>
 <p><b>Prioriteit:</b> {{ project.priority }}</p>
 <p><b>Omschrijving:</b><br>{{ project.description or '-' }}</p>
@@ -31,6 +32,11 @@
 <form method="post" action="{{ url_for('accept_project', project_id=project.id) }}"><button class="primary" type="submit">✓ Werf accepteren</button></form>
 <form method="post" action="{{ url_for('reject_project', project_id=project.id) }}" onsubmit="return confirm('Deze werf weigeren?');"><button type="submit" style="background:#8b1e1e;color:white;">✕ Werf weigeren</button></form>
 </div>
+<form method="post" action="{{ url_for('set_start_date', project_id=project.id) }}" style="margin-bottom:18px;">
+<label>Effectieve startdatum werken</label>
+<input type="date" name="start_date" value="{{ project.start_date or '' }}">
+<button class="primary" type="submit">Startdatum opslaan</button>
+</form>
 <form method="post" action="{{ url_for('change_status', project_id=project.id) }}">
 <label>Status</label>
 <select name="status">
@@ -41,5 +47,27 @@
 <button class="primary" type="submit">Status opslaan</button>
 </form></div>
 {% endif %}
+</div>
+
+<div class="card" style="margin-top:18px;">
+<h2>Communicatie & werfverslag</h2>
+<p class="muted">Berichten zijn zichtbaar voor HUYS en de partner. Bij elk nieuw bericht wordt een e-mail naar de betrokken partijen verstuurd.</p>
+<form method="post" action="{{ url_for('add_project_message', project_id=project.id) }}">
+<label>Nieuw bericht / werfverslag</label>
+<textarea name="message" rows="5" maxlength="10000" required placeholder="Noteer hier afspraken, opmerkingen, werfverloop, ontbrekende info of andere communicatie..."></textarea>
+<button class="primary" type="submit" style="margin-top:10px;">Bericht toevoegen en mailen</button>
+</form>
+<hr style="margin:24px 0;">
+{% for m in project.messages|reverse %}
+<div style="padding:14px 0;border-bottom:1px solid rgba(128,128,128,.25);">
+<div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+<strong>{{ m.author_name }}{% if m.author_role == 'huys_admin' %} · HUYS{% else %} · {{ project.company.name }}{% endif %}</strong>
+<span class="muted">{{ m.created_at.strftime('%d/%m/%Y %H:%M') if m.created_at else '' }}</span>
+</div>
+<div style="white-space:pre-wrap;margin-top:8px;">{{ m.message }}</div>
+</div>
+{% else %}
+<div class="muted">Nog geen communicatie of werfverslagen toegevoegd.</div>
+{% endfor %}
 </div>
 {% endblock %}
