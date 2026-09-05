@@ -1,8 +1,17 @@
 {% extends "base.html" %}
 {% block content %}
 <h1>Partnerbedrijven</h1>
+<div class="card">
+<h2>Nieuwe partner</h2>
+<form method="post">
+<label>Bedrijfsnaam</label><input name="company_name" required>
+<label>Contactpersoon</label><input name="name" required>
+<label>E-mailadres</label><input type="email" name="email" required>
+<label>Tijdelijk wachtwoord</label><input type="password" name="password" minlength="8" required>
+<button type="submit">Partner aanmaken</button>
+</form>
+</div>
 <div class="table-wrap"><table><thead><tr><th>Bedrijf</th><th>Gebruikers</th><th>Werven</th></tr></thead><tbody>
-{% for r in rows %}<tr><td><strong>{{ r.company.name }}</strong></td><td>{{ r.users }}</td><td>{{ r.projects }}</td></tr>{% endfor %}
+{% for r in rows %}<tr><td><strong>{{ r.company.name }}</strong></td><td>{{ r.users }}</td><td>{{ r.projects }}</td></tr>{% else %}<tr><td colspan="3">Nog geen partnerbedrijven.</td></tr>{% endfor %}
 </tbody></table></div>
-<p class="muted">Gebruikers uitnodigen en rechten per partner beheren kunnen we in de volgende fase toevoegen.</p>
 {% endblock %}
