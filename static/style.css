@@ -26,3 +26,22 @@ label{font-weight:700;font-size:12px;color:#4b5563;display:block;margin-bottom:6
 @media(max-width:1100px){.huys-auth-page{grid-template-columns:1fr 500px}.huys-auth-visual{padding:48px 7%}.huys-auth-copy h2{font-size:38px}.huys-auth-panel{padding:30px 24px}}
 @media(max-width:850px){.layout{grid-template-columns:1fr}aside{padding:14px;position:sticky;top:0;z-index:2}.brand{margin-bottom:8px}nav{display:flex;overflow:auto;margin:0}nav a{white-space:nowrap}main{padding:0 16px 25px}header{height:60px}.stats{grid-template-columns:1fr 1fr}.detail,.formgrid{grid-template-columns:1fr}.huys-auth-page{display:block;min-height:100vh;background:#f4f4f2}.huys-auth-visual{min-height:46vh;padding:32px 24px}.huys-auth-left-logo{width:min(390px,84%)}.huys-auth-copy h2{font-size:30px;margin-bottom:24px}.huys-benefits{display:none}.huys-services{font-size:11px;word-spacing:4px}.huys-auth-panel{min-height:54vh;padding:22px 16px 32px}.huys-auth-card{margin-top:-48px;position:relative;z-index:2;padding:24px 22px 28px;border-radius:18px}}
 @media(max-width:520px){.stats{grid-template-columns:1fr}.huys-auth-visual{min-height:38vh;padding:24px 18px}.huys-auth-copy h2{font-size:26px}.huys-services{display:none}.huys-auth-panel{padding:16px 12px 24px}.huys-auth-card{margin-top:-34px;padding:20px 16px 24px}.huys-auth-logo{width:min(300px,90%);margin-bottom:14px}.huys-auth-heading{margin-bottom:20px}.huys-auth-heading h1{font-size:28px}.huys-auth-heading p{font-size:16px}.huys-input-wrap,.huys-login-button{height:58px}}
+
+/* Exacte referentie-login: het voorbeeld zelf is de visuele laag; de echte velden liggen er exact bovenop. */
+.sr-only{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
+.exact-login-shell{min-height:100vh;background:#f7f7f6;display:flex;align-items:flex-start;justify-content:center;overflow:auto}
+.exact-login-stage{position:relative;width:100vw;max-width:1683px;aspect-ratio:1683/935;min-width:760px;background:#fff;flex:0 0 auto}
+.exact-login-art{position:absolute;inset:0;width:100%;height:100%;display:block;object-fit:fill;user-select:none;pointer-events:none}
+.exact-login-form{position:absolute;inset:0;margin:0;padding:0;pointer-events:none}
+.exact-email,.exact-password{position:absolute;z-index:3;margin:0!important;border:0!important;border-radius:0!important;outline:0!important;box-shadow:none!important;background:#fff!important;color:#1f2937!important;height:4.25%;padding:0 .2%!important;font:500 1.10vw/1.1 Inter,Arial,sans-serif!important;pointer-events:auto}
+.exact-email{left:66.78%;top:45.05%;width:26.25%}
+.exact-password{left:66.78%;top:53.54%;width:23.7%}
+.exact-email::placeholder,.exact-password::placeholder{color:#8b95a3;opacity:1}
+.exact-email:focus,.exact-password:focus{outline:2px solid rgba(11,63,44,.16)!important;outline-offset:1px!important}
+.exact-eye,.exact-submit,.exact-forgot,.exact-register{position:absolute;z-index:4;border:0;background:transparent;cursor:pointer;padding:0;margin:0;display:block;pointer-events:auto}
+.exact-eye{left:91.65%;top:53.10%;width:3.25%;height:5.7%}
+.exact-submit{left:63.58%;top:61.60%;width:30.92%;height:6.95%;border-radius:1vw}
+.exact-forgot{left:63.58%;top:70.32%;width:12.3%;height:3.3%}
+.exact-register{left:63.58%;top:82.10%;width:30.92%;height:6.15%;border-radius:1vw}
+.exact-login-messages{position:absolute;z-index:5;left:63.58%;top:37.8%;width:30.92%;font-size:13px}.exact-login-messages .flash{margin:0;padding:8px 10px;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,.08)}
+@media(max-width:900px){.exact-login-shell{justify-content:flex-start}.exact-login-stage{width:900px;min-width:900px}.exact-email,.exact-password{font-size:16px!important}}
