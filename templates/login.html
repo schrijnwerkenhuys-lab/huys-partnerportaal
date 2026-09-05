@@ -1,65 +1,31 @@
 {% extends "base.html" %}
 {% block title %}Welkom | HUYS Partnerportaal{% endblock %}
 {% block public %}
-<div class="huys-auth-page">
-  <section class="huys-auth-visual">
-    <img class="huys-auth-left-logo" src="{{ url_for('static', filename='huys-logo.svg') }}" alt="Schrijnwerken HUYS - maatwerk dat leeft">
+<div class="exact-login-shell">
+  <div class="exact-login-stage">
+    <img class="exact-login-art" src="{{ url_for('static', filename='login-exact.svg') }}" alt="HUYS Partnerportaal">
 
-    <div class="huys-auth-copy">
-      <h2>Samen bouwen<br><span>aan sterke projecten</span></h2>
-      <div class="huys-benefits">
-        <div class="huys-benefit">
-          <div class="huys-benefit-icon">▱</div>
-          <div><strong>Werfopvolging</strong><small>Altijd alle info op één plaats</small></div>
-        </div>
-        <div class="huys-benefit">
-          <div class="huys-benefit-icon">◌</div>
-          <div><strong>Duidelijke communicatie</strong><small>Snel en overzichtelijk</small></div>
-        </div>
-        <div class="huys-benefit">
-          <div class="huys-benefit-icon">♙♙</div>
-          <div><strong>Samen sterker</strong><small>Met onze partners</small></div>
-        </div>
-      </div>
-    </div>
-
-    <div class="huys-services">RAMEN <span>|</span> DEUREN <span>|</span> POORTEN <span>|</span> BINNEN- EN BUITENSCHRIJNWERK</div>
-  </section>
-
-  <section class="huys-auth-panel">
-    <div class="huys-auth-card">
-      <img class="huys-auth-logo" src="{{ url_for('static', filename='huys-logo.svg') }}" alt="Schrijnwerken HUYS - maatwerk dat leeft">
-
-      <div class="huys-auth-heading">
-        <h1>Welkom</h1>
-        <p>Log in op het partnerportaal</p>
-      </div>
-
-      {% with messages = get_flashed_messages(with_categories=true) %}
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+      <div class="exact-login-messages">
         {% for cat,msg in messages %}<div class="flash {{ cat }}">{{ msg }}</div>{% endfor %}
-      {% endwith %}
+      </div>
+      {% endif %}
+    {% endwith %}
 
-      <form method="post" class="huys-auth-form">
-        <div class="huys-input-wrap">
-          <span class="huys-input-icon">✉</span>
-          <input type="email" name="email" placeholder="E-mailadres" aria-label="E-mailadres" autocomplete="email" required>
-        </div>
+    <form method="post" class="exact-login-form" aria-label="Aanmelden op het HUYS Partnerportaal">
+      <label class="sr-only" for="exact-email">E-mailadres</label>
+      <input id="exact-email" class="exact-email" type="email" name="email" placeholder="E-mailadres" autocomplete="email" required>
 
-        <div class="huys-input-wrap">
-          <span class="huys-input-icon">▣</span>
-          <input id="login-password" type="password" name="password" placeholder="Wachtwoord" aria-label="Wachtwoord" autocomplete="current-password" required>
-          <button class="huys-password-toggle" type="button" aria-label="Wachtwoord tonen" onclick="const p=document.getElementById('login-password');p.type=p.type==='password'?'text':'password';this.textContent=p.type==='password'?'◉':'◎';">◉</button>
-        </div>
+      <label class="sr-only" for="exact-password">Wachtwoord</label>
+      <input id="exact-password" class="exact-password" type="password" name="password" placeholder="Wachtwoord" autocomplete="current-password" required>
 
-        <button class="huys-login-button" type="submit"><span>Inloggen</span><span class="huys-login-arrow">→</span></button>
-      </form>
+      <button class="exact-eye" type="button" aria-label="Wachtwoord tonen" onclick="const p=document.getElementById('exact-password'); p.type=p.type==='password'?'text':'password';"></button>
+      <button class="exact-submit" type="submit" aria-label="Inloggen"></button>
+    </form>
 
-      <a class="huys-forgot-link" href="{{ url_for('forgot_password') }}">Wachtwoord vergeten?</a>
-
-      <div class="huys-auth-divider"><span></span><em>of</em><span></span></div>
-
-      <a class="huys-create-account" href="{{ url_for('register') }}"><span class="huys-user-plus">♙+</span><strong>Maak zelf een account aan</strong></a>
-    </div>
-  </section>
+    <a class="exact-forgot" href="{{ url_for('forgot_password') }}" aria-label="Wachtwoord vergeten?"></a>
+    <a class="exact-register" href="{{ url_for('register') }}" aria-label="Maak zelf een account aan"></a>
+  </div>
 </div>
 {% endblock %}
