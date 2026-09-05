@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block public %}
+<div class="login-bg"><div class="login-card">
+  <div class="brand dark">HUYS<span>PARTNERPORTAAL</span></div>
+  <h1>Partneraccount aanmaken</h1>
+  <p class="muted">Maak een account aan voor uw bedrijf. Na registratie kunt u werven indienen bij Schrijnwerken HUYS.</p>
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for cat,msg in messages %}<div class="flash {{ cat }}">{{ msg }}</div>{% endfor %}
+  {% endwith %}
+  <form method="post">
+    <label>Bedrijfsnaam</label><input name="company_name" required>
+    <label>Contactpersoon</label><input name="name" required>
+    <label>E-mailadres</label><input type="email" name="email" required>
+    <label>Wachtwoord</label><input type="password" name="password" minlength="8" required>
+    <label>Herhaal wachtwoord</label><input type="password" name="confirm_password" minlength="8" required>
+    <button class="primary" type="submit">Account aanmaken</button>
+  </form>
+  <p class="muted" style="margin-top:18px;"><a href="{{ url_for('login') }}">Terug naar aanmelden</a></p>
+</div></div>
+{% endblock %}
