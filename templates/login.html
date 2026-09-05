@@ -1,7 +1,8 @@
 {% extends "base.html" %}
 {% block public %}
 <div class="login-bg"><div class="login-card">
-  <div class="brand dark">HUYS<span>PARTNERPORTAAL</span></div>
+  <img class="huys-login-logo" src="{{ url_for('static', filename='huys-logo.svg') }}" alt="Schrijnwerken HUYS - maatwerk dat leeft">
+  <div class="portal-label">PARTNERPORTAAL</div>
   <h1>Aanmelden</h1>
   <p class="muted">Beveiligde toegang voor partnerbedrijven en HUYS.</p>
   {% with messages = get_flashed_messages(with_categories=true) %}
