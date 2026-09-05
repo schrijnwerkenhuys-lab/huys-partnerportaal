@@ -11,7 +11,16 @@
 <button type="submit">Partner aanmaken</button>
 </form>
 </div>
-<div class="table-wrap"><table><thead><tr><th>Bedrijf</th><th>Gebruikers</th><th>Werven</th></tr></thead><tbody>
-{% for r in rows %}<tr><td><strong>{{ r.company.name }}</strong></td><td>{{ r.users }}</td><td>{{ r.projects }}</td></tr>{% else %}<tr><td colspan="3">Nog geen partnerbedrijven.</td></tr>{% endfor %}
+<div class="table-wrap"><table><thead><tr><th>Bedrijf</th><th>Gebruikers</th><th>Werven</th><th>Beheer</th></tr></thead><tbody>
+{% for r in rows %}
+<tr>
+<td><strong>{{ r.company.name }}</strong></td><td>{{ r.users }}</td><td>{{ r.projects }}</td>
+<td>
+<form method="post" action="{{ url_for('delete_company', company_id=r.company.id) }}" onsubmit="return confirm('Partner {{ r.company.name }} verwijderen? Alle accounts, werven en bestanden van deze partner worden definitief verwijderd.');">
+<button type="submit" style="background:#8b1e1e;color:white;">Partner verwijderen</button>
+</form>
+</td>
+</tr>
+{% else %}<tr><td colspan="4">Nog geen partnerbedrijven.</td></tr>{% endfor %}
 </tbody></table></div>
 {% endblock %}
