@@ -10,9 +10,17 @@ BASE_DIR = Path(__file__).resolve().parent
 UPLOAD_ROOT = Path(os.environ.get("UPLOAD_ROOT", str(BASE_DIR / "uploads")))
 UPLOAD_ROOT.mkdir(parents=True, exist_ok=True)
 
+def database_url():
+    url = os.environ.get("DATABASE_URL", f"sqlite:///{BASE_DIR / 'huys.db'}")
+    if url.startswith("postgres://"):
+        url = "postgresql+psycopg://" + url[len("postgres://"):]
+    elif url.startswith("postgresql://"):
+        url = "postgresql+psycopg://" + url[len("postgresql://"):]
+    return url
+
 app = Flask(__name__)
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "change-this-in-production")
-app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URL", f"sqlite:///{BASE_DIR / 'huys.db'}")
+app.config["SQLALCHEMY_DATABASE_URI"] = database_url()
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 app.config["MAX_CONTENT_LENGTH"] = 25 * 1024 * 1024
 app.config["SESSION_COOKIE_HTTPONLY"] = True
@@ -131,8 +139,7 @@ def new_project():
         p=Project(company_id=user.company_id,title=title,reference=request.form.get("reference","").strip(),address=request.form.get("address","").strip(),contact_name=request.form.get("contact_name","").strip(),phone=request.form.get("phone","").strip(),desired_date=request.form.get("desired_date","").strip(),job_type=request.form.get("job_type","").strip(),priority=request.form.get("priority","Normaal"),description=request.form.get("description","").strip(),status="Nieuw")
         db.session.add(p); db.session.flush()
         for f in request.files.getlist("documents"):
-            if not f or not f.filename: continue
-            if not allowed(f.filename): continue
+            if not f or not f.filename or not allowed(f.filename): continue
             original=secure_filename(f.filename); company_dir=UPLOAD_ROOT/str(user.company_id)/str(p.id); company_dir.mkdir(parents=True,exist_ok=True); stored=f"{p.id}_{len(p.documents)+1}_{original}"; f.save(company_dir/stored); db.session.add(Document(project_id=p.id,original_name=original,stored_name=stored))
         db.session.commit(); flash("Werf succesvol ingediend.","success"); return redirect(url_for("project_detail",project_id=p.id))
     return render_template("new_project.html")
