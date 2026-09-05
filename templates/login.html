@@ -1,31 +1,18 @@
 {% extends "base.html" %}
-{% block title %}Welkom | HUYS Partnerportaal{% endblock %}
 {% block public %}
-<div class="exact-login-shell">
-  <div class="exact-login-stage">
-    <img class="exact-login-art" src="{{ url_for('static', filename='login-exact.svg', v='20260906-2') }}" alt="HUYS Partnerportaal">
-
-    {% with messages = get_flashed_messages(with_categories=true) %}
-      {% if messages %}
-      <div class="exact-login-messages">
-        {% for cat,msg in messages %}<div class="flash {{ cat }}">{{ msg }}</div>{% endfor %}
-      </div>
-      {% endif %}
-    {% endwith %}
-
-    <form method="post" class="exact-login-form" aria-label="Aanmelden op het HUYS Partnerportaal">
-      <label class="sr-only" for="exact-email">E-mailadres</label>
-      <input id="exact-email" class="exact-email" type="email" name="email" placeholder="E-mailadres" autocomplete="email" required>
-
-      <label class="sr-only" for="exact-password">Wachtwoord</label>
-      <input id="exact-password" class="exact-password" type="password" name="password" placeholder="Wachtwoord" autocomplete="current-password" required>
-
-      <button class="exact-eye" type="button" aria-label="Wachtwoord tonen" onclick="const p=document.getElementById('exact-password'); p.type=p.type==='password'?'text':'password';"></button>
-      <button class="exact-submit" type="submit" aria-label="Inloggen"></button>
-    </form>
-
-    <a class="exact-forgot" href="{{ url_for('forgot_password') }}" aria-label="Wachtwoord vergeten?"></a>
-    <a class="exact-register" href="{{ url_for('register') }}" aria-label="Maak zelf een account aan"></a>
-  </div>
-</div>
+<div class="login-bg"><div class="login-card">
+  <div class="brand dark">HUYS<span>PARTNERPORTAAL</span></div>
+  <h1>Aanmelden</h1>
+  <p class="muted">Beveiligde toegang voor partnerbedrijven en HUYS.</p>
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for cat,msg in messages %}<div class="flash {{ cat }}">{{ msg }}</div>{% endfor %}
+  {% endwith %}
+  <form method="post">
+    <label>E-mail</label><input type="email" name="email" required>
+    <label>Wachtwoord</label><input type="password" name="password" required>
+    <button class="primary" type="submit">Aanmelden</button>
+  </form>
+  <p class="muted" style="margin-top:14px;"><a href="{{ url_for('forgot_password') }}"><strong>Wachtwoord vergeten?</strong></a></p>
+  <p class="muted" style="margin-top:10px;">Nog geen partneraccount? <a href="{{ url_for('register') }}"><strong>Maak zelf een account aan</strong></a></p>
+</div></div>
 {% endblock %}
