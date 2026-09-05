@@ -12,6 +12,7 @@
     <label>Wachtwoord</label><input type="password" name="password" required>
     <button class="primary" type="submit">Aanmelden</button>
   </form>
-  <p class="muted" style="margin-top:18px;">Nog geen partneraccount? <a href="{{ url_for('register') }}"><strong>Maak zelf een account aan</strong></a></p>
+  <p class="muted" style="margin-top:14px;"><a href="{{ url_for('forgot_password') }}"><strong>Wachtwoord vergeten?</strong></a></p>
+  <p class="muted" style="margin-top:10px;">Nog geen partneraccount? <a href="{{ url_for('register') }}"><strong>Maak zelf een account aan</strong></a></p>
 </div></div>
 {% endblock %}
