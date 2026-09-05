@@ -1,14 +1,10 @@
 import os
 import shutil
-import json
-import urllib.request
-import urllib.error
 from datetime import datetime
 from pathlib import Path
 from functools import wraps
 from flask import Flask, render_template, request, redirect, url_for, session, flash, send_from_directory, abort
 from flask_sqlalchemy import SQLAlchemy
-from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
 from sqlalchemy import inspect, text
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
@@ -46,6 +42,12 @@ class Document(db.Model):
     id=db.Column(db.Integer,primary_key=True); project_id=db.Column(db.Integer,db.ForeignKey("project.id"),nullable=False,index=True); original_name=db.Column(db.String(255),nullable=False); stored_name=db.Column(db.String(255),nullable=False)
 class ProjectMessage(db.Model):
     id=db.Column(db.Integer,primary_key=True); project_id=db.Column(db.Integer,db.ForeignKey("project.id"),nullable=False,index=True); user_id=db.Column(db.Integer,db.ForeignKey("user.id"),nullable=True); author_name=db.Column(db.String(120),nullable=False); author_role=db.Column(db.String(30),nullable=False); message=db.Column(db.Text,nullable=False); created_at=db.Column(db.DateTime,nullable=False,default=datetime.utcnow); user=db.relationship("User")
+class PasswordResetRequest(db.Model):
+    id=db.Column(db.Integer,primary_key=True)
+    user_id=db.Column(db.Integer,db.ForeignKey("user.id"),nullable=False,index=True)
+    requested_at=db.Column(db.DateTime,nullable=False,default=datetime.utcnow)
+    resolved_at=db.Column(db.DateTime,nullable=True)
+    user=db.relationship("User")
 
 def current_user():
     uid=session.get("user_id"); return db.session.get(User,uid) if uid else None
@@ -106,72 +108,6 @@ def create_partner(company_name,name,email,password):
     db.session.add(User(company_id=c.id,name=name,email=email,password_hash=generate_password_hash(password),role="partner_admin")); db.session.commit()
     return None
 
-def send_email(recipients,subject,body):
-    recipients=sorted({r.strip().lower() for r in recipients if r and r.strip()})
-    api_key=os.environ.get("RESEND_API_KEY","").strip()
-    sender=os.environ.get("RESEND_FROM","HUYS Partnerportaal <onboarding@resend.dev>").strip()
-    if not recipients or not api_key or not sender:
-        app.logger.error("Resend is niet volledig geconfigureerd; e-mail kon niet worden verstuurd.")
-        return False
-    try:
-        for recipient in recipients:
-            payload=json.dumps({"from":sender,"to":[recipient],"subject":subject,"text":body}).encode("utf-8")
-            req=urllib.request.Request(
-                "https://api.resend.com/emails",
-                data=payload,
-                headers={"Authorization":f"Bearer {api_key}","Content-Type":"application/json"},
-                method="POST"
-            )
-            with urllib.request.urlopen(req,timeout=15) as response:
-                if response.status < 200 or response.status >= 300:
-                    app.logger.error("Resend gaf status %s voor %s",response.status,recipient)
-                    return False
-        return True
-    except urllib.error.HTTPError as exc:
-        detail=exc.read().decode("utf-8",errors="replace")
-        app.logger.error("Resend HTTP-fout %s: %s",exc.code,detail)
-        return False
-    except Exception:
-        app.logger.exception("Fout bij versturen e-mail via Resend")
-        return False
-
-def reset_serializer():
-    return URLSafeTimedSerializer(app.config["SECRET_KEY"], salt="huys-password-reset")
-
-def reset_token_for(user):
-    return reset_serializer().dumps({"uid":user.id,"hash":user.password_hash})
-
-def user_from_reset_token(token):
-    try:
-        data=reset_serializer().loads(token,max_age=3600)
-    except (BadSignature,SignatureExpired):
-        return None
-    user=db.session.get(User,data.get("uid"))
-    if not user or user.password_hash!=data.get("hash"):
-        return None
-    return user
-
-def send_reset_email(user):
-    token=reset_token_for(user)
-    base=os.environ.get("PUBLIC_BASE_URL","").rstrip("/")
-    path=url_for("reset_password",token=token)
-    reset_url=f"{base}{path}" if base else url_for("reset_password",token=token,_external=True)
-    body=f"Beste {user.name},\n\nJe hebt gevraagd om je wachtwoord voor het HUYS Partnerportaal opnieuw in te stellen.\n\nGebruik deze link binnen 1 uur:\n{reset_url}\n\nHeb je dit niet aangevraagd? Dan hoef je niets te doen.\n\nMet vriendelijke groet,\nSchrijnwerken HUYS"
-    return send_email([user.email],"Wachtwoord opnieuw instellen - HUYS Partnerportaal",body)
-
-def project_recipients(project):
-    users=User.query.filter((User.role=="huys_admin") | (User.company_id==project.company_id)).all()
-    return [u.email for u in users if u.email]
-
-def send_project_message_email(project,entry):
-    base=os.environ.get("PUBLIC_BASE_URL","").rstrip("/")
-    path=url_for("project_detail",project_id=project.id)
-    project_url=f"{base}{path}" if base else url_for("project_detail",project_id=project.id,_external=True)
-    role="HUYS" if entry.author_role=="huys_admin" else project.company.name
-    subject=f"Nieuw werfverslag - {project.title}"
-    body=f"Er is een nieuw bericht toegevoegd aan de werf.\n\nWerf: {project.title}\nPartner: {project.company.name}\nVan: {entry.author_name} ({role})\n\nBericht / werfverslag:\n{entry.message}\n\nBekijk de werf:\n{project_url}\n\nMet vriendelijke groet,\nSchrijnwerken HUYS"
-    return send_email(project_recipients(project),subject,body)
-
 def ensure_schema():
     inspector=inspect(db.engine)
     if "project" in inspector.get_table_names():
@@ -181,7 +117,12 @@ def ensure_schema():
                 conn.execute(text("ALTER TABLE project ADD COLUMN start_date VARCHAR(30)"))
 
 @app.context_processor
-def inject_user(): return {"me":current_user()}
+def inject_user():
+    me=current_user()
+    reset_request_count=0
+    if me and me.role=="huys_admin":
+        reset_request_count=PasswordResetRequest.query.filter_by(resolved_at=None).count()
+    return {"me":me,"reset_request_count":reset_request_count}
 @app.route("/health")
 def health(): return {"status":"ok"},200
 @app.route("/")
@@ -198,23 +139,13 @@ def forgot_password():
     if current_user(): return redirect(url_for("dashboard"))
     if request.method=="POST":
         email=request.form.get("email","").strip().lower(); user=User.query.filter_by(email=email).first()
-        if user: send_reset_email(user)
-        flash("Als dit e-mailadres bij ons bekend is, ontvang je een e-mail met een resetlink.","success")
+        if user:
+            existing=PasswordResetRequest.query.filter_by(user_id=user.id,resolved_at=None).first()
+            if not existing:
+                db.session.add(PasswordResetRequest(user_id=user.id)); db.session.commit()
+        flash("Je aanvraag is doorgegeven aan HUYS. De beheerder kan je wachtwoord handmatig aanpassen.","success")
         return redirect(url_for("login"))
     return render_template("forgot_password.html")
-@app.route("/reset-password/<token>",methods=["GET","POST"])
-def reset_password(token):
-    if current_user(): return redirect(url_for("dashboard"))
-    user=user_from_reset_token(token)
-    if not user:
-        flash("Deze resetlink is ongeldig of verlopen. Vraag een nieuwe link aan.","error"); return redirect(url_for("forgot_password"))
-    if request.method=="POST":
-        password=request.form.get("password",""); confirm=request.form.get("confirm_password","")
-        if len(password)<8: flash("Het wachtwoord moet minstens 8 tekens bevatten.","error")
-        elif password!=confirm: flash("De wachtwoorden zijn niet gelijk.","error")
-        else:
-            user.password_hash=generate_password_hash(password); db.session.commit(); flash("Je wachtwoord is gewijzigd. Je kunt nu aanmelden.","success"); return redirect(url_for("login"))
-    return render_template("reset_password.html")
 @app.route("/register",methods=["GET","POST"])
 def register():
     if current_user(): return redirect(url_for("dashboard"))
@@ -280,9 +211,7 @@ def add_project_message(project_id):
         flash("Het bericht is te lang. Gebruik maximaal 10.000 tekens.","error"); return redirect(url_for("project_detail",project_id=p.id))
     entry=ProjectMessage(project_id=p.id,user_id=u.id,author_name=u.name,author_role=u.role,message=message)
     db.session.add(entry); db.session.commit()
-    mailed=send_project_message_email(p,entry)
-    if mailed: flash("Bericht / werfverslag opgeslagen en per e-mail verstuurd.","success")
-    else: flash("Bericht / werfverslag opgeslagen, maar de e-mail kon niet worden verstuurd.","error")
+    flash("Bericht / werfverslag opgeslagen in het partnerportaal.","success")
     return redirect(url_for("project_detail",project_id=p.id))
 @app.route("/projects/<int:project_id>/start-date",methods=["POST"])
 @admin_required
@@ -328,12 +257,37 @@ def companies():
         else: flash("Partner en gebruiker succesvol aangemaakt.","success")
         return redirect(url_for("companies"))
     rows=[{"company":c,"users":User.query.filter_by(company_id=c.id).count(),"projects":Project.query.filter_by(company_id=c.id).count()} for c in Company.query.order_by(Company.name).all()]; return render_template("companies.html",rows=rows)
+@app.route("/admin/password-requests")
+@admin_required
+def password_requests():
+    requests=PasswordResetRequest.query.order_by(PasswordResetRequest.resolved_at.is_(None).desc(),PasswordResetRequest.requested_at.desc()).all()
+    return render_template("password_requests.html",requests=requests)
+@app.route("/admin/users/<int:user_id>/password",methods=["POST"])
+@admin_required
+def admin_change_password(user_id):
+    user=db.session.get(User,user_id)
+    if not user: abort(404)
+    password=request.form.get("password","")
+    confirm=request.form.get("confirm_password","")
+    if len(password)<8:
+        flash("Het nieuwe wachtwoord moet minstens 8 tekens bevatten.","error")
+    elif password!=confirm:
+        flash("De wachtwoorden zijn niet gelijk.","error")
+    else:
+        user.password_hash=generate_password_hash(password)
+        PasswordResetRequest.query.filter_by(user_id=user.id,resolved_at=None).update({"resolved_at":datetime.utcnow()},synchronize_session=False)
+        db.session.commit()
+        flash(f"Wachtwoord van {user.name} is aangepast. De aanvraag is afgehandeld.","success")
+    return redirect(url_for("password_requests"))
 @app.route("/admin/companies/<int:company_id>/delete",methods=["POST"])
 @admin_required
 def delete_company(company_id):
     c=db.session.get(Company,company_id)
     if not c: abort(404)
     company_name=c.name; projects=Project.query.filter_by(company_id=c.id).all()
+    user_ids=[u.id for u in User.query.filter_by(company_id=c.id).all()]
+    if user_ids:
+        PasswordResetRequest.query.filter(PasswordResetRequest.user_id.in_(user_ids)).delete(synchronize_session=False)
     for p in projects: db.session.delete(p)
     User.query.filter_by(company_id=c.id).delete(synchronize_session=False)
     db.session.delete(c); db.session.commit()
