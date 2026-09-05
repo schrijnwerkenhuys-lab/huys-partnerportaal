@@ -1,6 +1,9 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="section-head"><div><h1>{{ project.title }}</h1><div class="muted">{{ project.reference or 'Geen referentie' }}</div></div><span class="status {% if project.status=='Wacht op info' %}warn{% endif %}">{{ project.status }}</span></div>
+<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px;">
+<a href="{{ url_for('edit_project', project_id=project.id) }}" class="button">✎ Werf aanpassen</a>
+</div>
 <div class="detail">
 <div class="card">
 <h2>Werfgegevens</h2>
@@ -15,6 +18,12 @@
 {% for d in project.documents %}
 <div class="doc"><a href="{{ url_for('download_document', doc_id=d.id) }}">📄 {{ d.original_name }}</a></div>
 {% else %}<div class="muted">Geen documenten toegevoegd.</div>{% endfor %}
+<hr style="margin:22px 0;">
+<h3>Extra bijlagen toevoegen</h3>
+<form method="post" action="{{ url_for('add_project_documents', project_id=project.id) }}" enctype="multipart/form-data">
+<input type="file" name="documents" multiple required>
+<button class="primary" type="submit" style="margin-top:10px;">Bijlagen toevoegen</button>
+</form>
 </div>
 {% if me.role == 'huys_admin' %}
 <div class="card"><h2>HUYS beheer</h2>
