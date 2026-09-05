@@ -1,8 +1,9 @@
 import os
 import shutil
-import smtplib
+import json
+import urllib.request
+import urllib.error
 from datetime import datetime
-from email.message import EmailMessage
 from pathlib import Path
 from functools import wraps
 from flask import Flask, render_template, request, redirect, url_for, session, flash, send_from_directory, abort
@@ -105,31 +106,33 @@ def create_partner(company_name,name,email,password):
     db.session.add(User(company_id=c.id,name=name,email=email,password_hash=generate_password_hash(password),role="partner_admin")); db.session.commit()
     return None
 
-def smtp_settings():
-    return {
-        "host":os.environ.get("SMTP_HOST","").strip(),
-        "port":int(os.environ.get("SMTP_PORT","587")),
-        "username":os.environ.get("SMTP_USERNAME","").strip(),
-        "password":os.environ.get("SMTP_PASSWORD",""),
-        "sender":os.environ.get("SMTP_FROM",os.environ.get("SMTP_USERNAME","")).strip(),
-        "use_tls":os.environ.get("SMTP_USE_TLS","1")=="1"
-    }
-
 def send_email(recipients,subject,body):
     recipients=sorted({r.strip().lower() for r in recipients if r and r.strip()})
-    cfg=smtp_settings()
-    if not recipients or not cfg["host"] or not cfg["sender"]:
-        app.logger.error("SMTP is niet volledig geconfigureerd; e-mail kon niet worden verstuurd.")
+    api_key=os.environ.get("RESEND_API_KEY","").strip()
+    sender=os.environ.get("RESEND_FROM","HUYS Partnerportaal <onboarding@resend.dev>").strip()
+    if not recipients or not api_key or not sender:
+        app.logger.error("Resend is niet volledig geconfigureerd; e-mail kon niet worden verstuurd.")
         return False
     try:
-        with smtplib.SMTP(cfg["host"],cfg["port"],timeout=15) as server:
-            if cfg["use_tls"]: server.starttls()
-            if cfg["username"] and cfg["password"]: server.login(cfg["username"],cfg["password"])
-            for recipient in recipients:
-                msg=EmailMessage(); msg["Subject"]=subject; msg["From"]=cfg["sender"]; msg["To"]=recipient; msg.set_content(body); server.send_message(msg)
+        for recipient in recipients:
+            payload=json.dumps({"from":sender,"to":[recipient],"subject":subject,"text":body}).encode("utf-8")
+            req=urllib.request.Request(
+                "https://api.resend.com/emails",
+                data=payload,
+                headers={"Authorization":f"Bearer {api_key}","Content-Type":"application/json"},
+                method="POST"
+            )
+            with urllib.request.urlopen(req,timeout=15) as response:
+                if response.status < 200 or response.status >= 300:
+                    app.logger.error("Resend gaf status %s voor %s",response.status,recipient)
+                    return False
         return True
+    except urllib.error.HTTPError as exc:
+        detail=exc.read().decode("utf-8",errors="replace")
+        app.logger.error("Resend HTTP-fout %s: %s",exc.code,detail)
+        return False
     except Exception:
-        app.logger.exception("Fout bij versturen e-mail")
+        app.logger.exception("Fout bij versturen e-mail via Resend")
         return False
 
 def reset_serializer():
