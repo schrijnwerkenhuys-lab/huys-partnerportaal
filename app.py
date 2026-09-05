@@ -1,9 +1,12 @@
 import os
 import shutil
+import smtplib
+from email.message import EmailMessage
 from pathlib import Path
 from functools import wraps
 from flask import Flask, render_template, request, redirect, url_for, session, flash, send_from_directory, abort
 from flask_sqlalchemy import SQLAlchemy
+from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 
@@ -69,6 +72,43 @@ def create_partner(company_name,name,email,password):
     db.session.add(User(company_id=c.id,name=name,email=email,password_hash=generate_password_hash(password),role="partner_admin")); db.session.commit()
     return None
 
+def reset_serializer():
+    return URLSafeTimedSerializer(app.config["SECRET_KEY"], salt="huys-password-reset")
+
+def reset_token_for(user):
+    return reset_serializer().dumps({"uid":user.id,"hash":user.password_hash})
+
+def user_from_reset_token(token):
+    try:
+        data=reset_serializer().loads(token,max_age=3600)
+    except (BadSignature,SignatureExpired):
+        return None
+    user=db.session.get(User,data.get("uid"))
+    if not user or user.password_hash!=data.get("hash"):
+        return None
+    return user
+
+def send_reset_email(user):
+    host=os.environ.get("SMTP_HOST","").strip(); port=int(os.environ.get("SMTP_PORT","587")); username=os.environ.get("SMTP_USERNAME","").strip(); password=os.environ.get("SMTP_PASSWORD",""); sender=os.environ.get("SMTP_FROM",username).strip(); use_tls=os.environ.get("SMTP_USE_TLS","1")=="1"
+    if not host or not sender:
+        app.logger.error("SMTP is niet geconfigureerd; wachtwoordresetmail kon niet worden verstuurd.")
+        return False
+    token=reset_token_for(user)
+    base=os.environ.get("PUBLIC_BASE_URL","").rstrip("/")
+    path=url_for("reset_password",token=token)
+    reset_url=f"{base}{path}" if base else url_for("reset_password",token=token,_external=True)
+    msg=EmailMessage(); msg["Subject"]="Wachtwoord opnieuw instellen - HUYS Partnerportaal"; msg["From"]=sender; msg["To"]=user.email
+    msg.set_content(f"Beste {user.name},\n\nJe hebt gevraagd om je wachtwoord voor het HUYS Partnerportaal opnieuw in te stellen.\n\nGebruik deze link binnen 1 uur:\n{reset_url}\n\nHeb je dit niet aangevraagd? Dan hoef je niets te doen.\n\nMet vriendelijke groet,\nSchrijnwerken HUYS")
+    try:
+        with smtplib.SMTP(host,port,timeout=15) as server:
+            if use_tls: server.starttls()
+            if username and password: server.login(username,password)
+            server.send_message(msg)
+        return True
+    except Exception:
+        app.logger.exception("Fout bij versturen wachtwoordresetmail")
+        return False
+
 @app.context_processor
 def inject_user(): return {"me":current_user()}
 @app.route("/health")
@@ -82,6 +122,28 @@ def login():
         if u and check_password_hash(u.password_hash,password): session.clear(); session["user_id"]=u.id; return redirect(url_for("dashboard"))
         flash("Ongeldige login.","error")
     return render_template("login.html")
+@app.route("/forgot-password",methods=["GET","POST"])
+def forgot_password():
+    if current_user(): return redirect(url_for("dashboard"))
+    if request.method=="POST":
+        email=request.form.get("email","").strip().lower(); user=User.query.filter_by(email=email).first()
+        if user: send_reset_email(user)
+        flash("Als dit e-mailadres bij ons bekend is, ontvang je een e-mail met een resetlink.","success")
+        return redirect(url_for("login"))
+    return render_template("forgot_password.html")
+@app.route("/reset-password/<token>",methods=["GET","POST"])
+def reset_password(token):
+    if current_user(): return redirect(url_for("dashboard"))
+    user=user_from_reset_token(token)
+    if not user:
+        flash("Deze resetlink is ongeldig of verlopen. Vraag een nieuwe link aan.","error"); return redirect(url_for("forgot_password"))
+    if request.method=="POST":
+        password=request.form.get("password",""); confirm=request.form.get("confirm_password","")
+        if len(password)<8: flash("Het wachtwoord moet minstens 8 tekens bevatten.","error")
+        elif password!=confirm: flash("De wachtwoorden zijn niet gelijk.","error")
+        else:
+            user.password_hash=generate_password_hash(password); db.session.commit(); flash("Je wachtwoord is gewijzigd. Je kunt nu aanmelden.","success"); return redirect(url_for("login"))
+    return render_template("reset_password.html")
 @app.route("/register",methods=["GET","POST"])
 def register():
     if current_user(): return redirect(url_for("dashboard"))
