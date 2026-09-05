@@ -65,6 +65,35 @@ def project_or_404(pid):
     return p
 def allowed(filename): return "." in filename and filename.rsplit(".",1)[1].lower() in ALLOWED_EXTENSIONS
 
+def save_project_documents(project, files):
+    saved=0
+    folder=UPLOAD_ROOT/str(project.company_id)/str(project.id)
+    folder.mkdir(parents=True,exist_ok=True)
+    for f in files:
+        if not f or not f.filename or not allowed(f.filename): continue
+        original=secure_filename(f.filename)
+        if not original: continue
+        number=Document.query.filter_by(project_id=project.id).count()+saved+1
+        stored=f"{project.id}_{number}_{original}"
+        f.save(folder/stored)
+        db.session.add(Document(project_id=project.id,original_name=original,stored_name=stored))
+        saved+=1
+    return saved
+
+def update_project_from_form(project):
+    title=request.form.get("title","").strip()
+    if not title: return False
+    project.title=title
+    project.reference=request.form.get("reference","").strip()
+    project.address=request.form.get("address","").strip()
+    project.contact_name=request.form.get("contact_name","").strip()
+    project.phone=request.form.get("phone","").strip()
+    project.desired_date=request.form.get("desired_date","").strip()
+    project.job_type=request.form.get("job_type","").strip()
+    project.priority=request.form.get("priority","Normaal")
+    project.description=request.form.get("description","").strip()
+    return True
+
 def create_partner(company_name,name,email,password):
     if Company.query.filter_by(name=company_name).first(): return "Dit partnerbedrijf bestaat al."
     if User.query.filter_by(email=email).first(): return "Dit e-mailadres is al in gebruik."
@@ -173,14 +202,32 @@ def new_project():
         title=request.form.get("title","").strip()
         if not title: flash("Projectnaam is verplicht.","error"); return render_template("new_project.html")
         p=Project(company_id=u.company_id,title=title,reference=request.form.get("reference","").strip(),address=request.form.get("address","").strip(),contact_name=request.form.get("contact_name","").strip(),phone=request.form.get("phone","").strip(),desired_date=request.form.get("desired_date","").strip(),job_type=request.form.get("job_type","").strip(),priority=request.form.get("priority","Normaal"),description=request.form.get("description","").strip(),status="Nieuw"); db.session.add(p); db.session.flush()
-        for f in request.files.getlist("documents"):
-            if not f or not f.filename or not allowed(f.filename): continue
-            original=secure_filename(f.filename); folder=UPLOAD_ROOT/str(u.company_id)/str(p.id); folder.mkdir(parents=True,exist_ok=True); stored=f"{p.id}_{len(p.documents)+1}_{original}"; f.save(folder/stored); db.session.add(Document(project_id=p.id,original_name=original,stored_name=stored))
+        save_project_documents(p,request.files.getlist("documents"))
         db.session.commit(); flash("Werf succesvol ingediend en wacht op beoordeling door HUYS.","success"); return redirect(url_for("project_detail",project_id=p.id))
     return render_template("new_project.html")
 @app.route("/projects/<int:project_id>")
 @login_required
 def project_detail(project_id): return render_template("project_detail.html",project=project_or_404(project_id))
+@app.route("/projects/<int:project_id>/edit",methods=["GET","POST"])
+@login_required
+def edit_project(project_id):
+    p=project_or_404(project_id)
+    if request.method=="POST":
+        if not update_project_from_form(p):
+            flash("Project / klant is verplicht.","error"); return render_template("edit_project.html",project=p)
+        save_project_documents(p,request.files.getlist("documents"))
+        db.session.commit(); flash("Werfgegevens zijn aangepast.","success"); return redirect(url_for("project_detail",project_id=p.id))
+    return render_template("edit_project.html",project=p)
+@app.route("/projects/<int:project_id>/documents/add",methods=["POST"])
+@login_required
+def add_project_documents(project_id):
+    p=project_or_404(project_id)
+    saved=save_project_documents(p,request.files.getlist("documents"))
+    if saved:
+        db.session.commit(); flash(f"{saved} bijlage(n) toegevoegd.","success")
+    else:
+        db.session.rollback(); flash("Geen geldige bijlagen geselecteerd.","error")
+    return redirect(url_for("project_detail",project_id=p.id))
 @app.route("/projects/<int:project_id>/status",methods=["POST"])
 @admin_required
 def change_status(project_id):
