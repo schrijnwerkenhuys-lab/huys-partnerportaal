@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Dashboard · HUYS{% endblock %}
+{% block content %}
+<h1>Dashboard</h1>
+<div class="stats">
+  <div class="card"><span>Actieve werven</span><strong>{{ stats.active }}</strong></div>
+  <div class="card"><span>Nieuwe aanvragen</span><strong>{{ stats.new }}</strong></div>
+  <div class="card"><span>Wacht op info</span><strong>{{ stats.info }}</strong></div>
+  <div class="card"><span>Afgewerkt</span><strong>{{ stats.done }}</strong></div>
+</div>
+<div class="section-head"><h2>Werven</h2>{% if me.role != 'huys_admin' %}<a class="primary btn" href="{{ url_for('new_project') }}">+ Nieuwe werf</a>{% endif %}</div>
+<div class="table-wrap"><table>
+<thead><tr><th>Project</th>{% if me.role=='huys_admin' %}<th>Partner</th>{% endif %}<th>Werf</th><th>Type</th><th>Status</th><th></th></tr></thead>
+<tbody>
+{% for p in projects %}
+<tr>
+<td><strong>{{ p.title }}</strong><div class="muted">{{ p.reference or 'Geen referentie' }}</div></td>
+{% if me.role=='huys_admin' %}<td>{{ p.company.name }}</td>{% endif %}
+<td>{{ p.address or '-' }}</td><td>{{ p.job_type or '-' }}</td>
+<td><span class="status {% if p.status=='Wacht op info' %}warn{% endif %}">{{ p.status }}</span></td>
+<td><a class="linkbtn" href="{{ url_for('project_detail', project_id=p.id) }}">Open</a></td>
+</tr>
+{% else %}<tr><td colspan="6">Nog geen werven.</td></tr>{% endfor %}
+</tbody></table></div>
+{% endblock %}
