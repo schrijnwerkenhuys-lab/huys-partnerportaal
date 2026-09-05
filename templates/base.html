@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}HUYS Partnerportaal{% endblock %}</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+{% if me %}
+<div class="layout">
+  <aside>
+    <div class="brand">HUYS<span>PARTNERPORTAAL</span></div>
+    <nav>
+      <a href="{{ url_for('dashboard') }}">Dashboard</a>
+      {% if me.role != 'huys_admin' %}<a href="{{ url_for('new_project') }}">Nieuwe werf</a>{% endif %}
+      {% if me.role == 'huys_admin' %}<a href="{{ url_for('companies') }}">Partnerbedrijven</a>{% endif %}
+      <a href="{{ url_for('logout') }}">Uitloggen</a>
+    </nav>
+  </aside>
+  <main>
+    <header><div><strong>{{ me.name }}</strong><div class="muted">{{ me.company.name if me.company else 'Schrijnwerken HUYS' }}</div></div></header>
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for cat,msg in messages %}<div class="flash {{ cat }}">{{ msg }}</div>{% endfor %}
+    {% endwith %}
+    {% block content %}{% endblock %}
+  </main>
+</div>
+{% else %}
+{% block public %}{% endblock %}
+{% endif %}
+</body></html>
