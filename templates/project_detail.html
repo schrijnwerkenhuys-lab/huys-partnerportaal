@@ -16,6 +16,26 @@
 <p><b>Type:</b> {{ project.job_type or '-' }}</p>
 <p><b>Prioriteit:</b> {{ project.priority }}</p>
 <p><b>Omschrijving:</b><br>{{ project.description or '-' }}</p>
+
+<hr style="margin:22px 0;">
+<h2>Raming partner</h2>
+{% if me.role != 'huys_admin' %}
+<p class="muted">Vul hier de verwachte uren en kosten voor deze werf in. Je kunt deze raming later nog aanpassen.</p>
+<form method="post" action="{{ url_for('set_partner_estimate', project_id=project.id) }}">
+<label>Verwachte werkuren</label>
+<input type="number" name="expected_hours" min="0" step="0.25" value="{{ project.expected_hours or '' }}" placeholder="bv. 24">
+<label>Bedrag voor de werken (€)</label>
+<input type="number" name="partner_amount" min="0" step="0.01" value="{{ project.partner_amount or '' }}" placeholder="bv. 1250.00">
+<label>Materiaalkost (€)</label>
+<input type="number" name="material_cost" min="0" step="0.01" value="{{ project.material_cost or '' }}" placeholder="bv. 350.00">
+<button class="primary" type="submit">Raming opslaan</button>
+</form>
+{% else %}
+<p><b>Verwachte werkuren:</b> {{ project.expected_hours or '-' }}</p>
+<p><b>Bedrag voor de werken:</b> {% if project.partner_amount %}€ {{ project.partner_amount }}{% else %}-{% endif %}</p>
+<p><b>Materiaalkost:</b> {% if project.material_cost %}€ {{ project.material_cost }}{% else %}-{% endif %}</p>
+{% endif %}
+
 <h2>Documenten</h2>
 {% for d in project.documents %}
 <div class="doc"><a href="{{ url_for('download_document', doc_id=d.id) }}">📄 {{ d.original_name }}</a></div>
