@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Financiën · HUYS Partnerportaal{% endblock %}
+{% block content %}
+<div class="section-head"><div><h1>Financieel overzicht werven</h1><div class="muted">Alle geaccepteerde werven en hun betaalstatus.</div></div></div>
+
+<div class="stats">
+  <div class="stat"><span>Totaal geaccepteerd</span><strong>€ {{ '%.2f'|format(total) }}</strong></div>
+  <div class="stat"><span>Totaal betaald</span><strong>€ {{ '%.2f'|format(paid) }}</strong></div>
+  <div class="stat"><span>Totaal openstaand</span><strong>€ {{ '%.2f'|format(open_amount) }}</strong></div>
+</div>
+
+<div class="card" style="margin-top:18px;overflow-x:auto;">
+<table style="width:100%;border-collapse:collapse;min-width:1050px;">
+<thead><tr style="text-align:left;">
+<th style="padding:10px;">Partner</th><th style="padding:10px;">Werf</th><th style="padding:10px;">Status werf</th><th style="padding:10px;">Werkbedrag</th><th style="padding:10px;">Materiaalkost</th><th style="padding:10px;">Betaald</th><th style="padding:10px;">Openstaand</th><th style="padding:10px;">Betaalstatus</th><th style="padding:10px;">Bijwerken</th>
+</tr></thead>
+<tbody>
+{% for row in rows %}
+<tr style="border-top:1px solid rgba(128,128,128,.25);">
+<td style="padding:10px;">{{ row.project.company.name }}</td>
+<td style="padding:10px;"><a href="{{ url_for('project_detail', project_id=row.project.id) }}"><strong>{{ row.project.title }}</strong></a><div class="muted">{{ row.project.reference or '' }}</div></td>
+<td style="padding:10px;">{{ row.project.status }}</td>
+<td style="padding:10px;">€ {{ '%.2f'|format(row.amount) }}</td>
+<td style="padding:10px;">€ {{ '%.2f'|format(row.material) }}</td>
+<td style="padding:10px;">€ {{ '%.2f'|format(row.paid) }}</td>
+<td style="padding:10px;"><strong>€ {{ '%.2f'|format(row.outstanding) }}</strong></td>
+<td style="padding:10px;"><span class="status {% if row.payment_status != 'Betaald' %}warn{% endif %}">{{ row.payment_status }}</span></td>
+<td style="padding:10px;">
+<form method="post" action="{{ url_for('set_project_payment', project_id=row.project.id) }}" style="display:flex;gap:7px;align-items:center;">
+<input type="number" name="paid_amount" min="0" step="0.01" value="{{ '%.2f'|format(row.paid) }}" style="min-width:110px;margin:0;">
+<button class="primary" type="submit">Opslaan</button>
+</form>
+</td>
+</tr>
+{% else %}
+<tr><td colspan="9" class="muted" style="padding:20px;">Nog geen geaccepteerde werven.</td></tr>
+{% endfor %}
+</tbody></table>
+</div>
+{% endblock %}
