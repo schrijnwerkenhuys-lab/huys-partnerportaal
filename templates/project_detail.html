@@ -11,7 +11,8 @@
 <p><b>Adres:</b> {{ project.address or '-' }}</p>
 <p><b>Contact:</b> {{ project.contact_name or '-' }} · {{ project.phone or '-' }}</p>
 <p><b>Gewenste datum:</b> {{ project.desired_date or '-' }}</p>
-<p><b>Effectieve startdatum:</b> {{ project.start_date or 'Nog niet ingepland' }}</p>
+<p><b>Inplantdatum:</b> {{ project.start_date or 'Nog niet ingepland' }}</p>
+<p><b>Verwachte einddatum:</b> {{ project.expected_end_date or 'Nog niet bepaald' }}</p>
 <p><b>Type:</b> {{ project.job_type or '-' }}</p>
 <p><b>Prioriteit:</b> {{ project.priority }}</p>
 <p><b>Omschrijving:</b><br>{{ project.description or '-' }}</p>
@@ -33,9 +34,11 @@
 <form method="post" action="{{ url_for('reject_project', project_id=project.id) }}" onsubmit="return confirm('Deze werf weigeren?');"><button type="submit" style="background:#8b1e1e;color:white;">✕ Werf weigeren</button></form>
 </div>
 <form method="post" action="{{ url_for('set_start_date', project_id=project.id) }}" style="margin-bottom:18px;">
-<label>Effectieve startdatum werken</label>
+<label>Inplantdatum / startdatum</label>
 <input type="date" name="start_date" value="{{ project.start_date or '' }}">
-<button class="primary" type="submit">Startdatum opslaan</button>
+<label>Verwachte einddatum</label>
+<input type="date" name="expected_end_date" value="{{ project.expected_end_date or '' }}">
+<button class="primary" type="submit">Planning opslaan</button>
 </form>
 <form method="post" action="{{ url_for('change_status', project_id=project.id) }}">
 <label>Status</label>
@@ -51,11 +54,11 @@
 
 <div class="card" style="margin-top:18px;">
 <h2>Communicatie & werfverslag</h2>
-<p class="muted">Berichten zijn zichtbaar voor HUYS en de partner. Bij elk nieuw bericht wordt een e-mail naar de betrokken partijen verstuurd.</p>
+<p class="muted">Berichten zijn zichtbaar voor HUYS en de partner.</p>
 <form method="post" action="{{ url_for('add_project_message', project_id=project.id) }}">
 <label>Nieuw bericht / werfverslag</label>
 <textarea name="message" rows="5" maxlength="10000" required placeholder="Noteer hier afspraken, opmerkingen, werfverloop, ontbrekende info of andere communicatie..."></textarea>
-<button class="primary" type="submit" style="margin-top:10px;">Bericht toevoegen en mailen</button>
+<button class="primary" type="submit" style="margin-top:10px;">Bericht toevoegen</button>
 </form>
 <hr style="margin:24px 0;">
 {% for m in project.messages|reverse %}
