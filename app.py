@@ -66,6 +66,7 @@ class Project(db.Model):
     expected_hours = db.Column(db.String(30))
     partner_amount = db.Column(db.String(30))
     material_cost = db.Column(db.String(30))
+    paid_amount = db.Column(db.String(30))
     job_type = db.Column(db.String(100))
     priority = db.Column(db.String(30), nullable=False, default="Normaal")
     description = db.Column(db.Text)
@@ -141,6 +142,22 @@ def allowed(filename):
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
+def money_value(value):
+    if value is None:
+        return 0.0
+    raw = str(value).strip().replace("€", "").replace(" ", "")
+    if not raw:
+        return 0.0
+    if "," in raw and "." in raw:
+        raw = raw.replace(".", "").replace(",", ".")
+    else:
+        raw = raw.replace(",", ".")
+    try:
+        return max(0.0, float(raw))
+    except ValueError:
+        return 0.0
+
+
 def save_project_documents(project, files):
     saved = 0
     folder = UPLOAD_ROOT / str(project.company_id) / str(project.id)
@@ -193,16 +210,9 @@ def ensure_schema():
     if "project" in inspector.get_table_names():
         columns = {c["name"] for c in inspector.get_columns("project")}
         statements = []
-        if "start_date" not in columns:
-            statements.append("ALTER TABLE project ADD COLUMN start_date VARCHAR(30)")
-        if "expected_end_date" not in columns:
-            statements.append("ALTER TABLE project ADD COLUMN expected_end_date VARCHAR(30)")
-        if "expected_hours" not in columns:
-            statements.append("ALTER TABLE project ADD COLUMN expected_hours VARCHAR(30)")
-        if "partner_amount" not in columns:
-            statements.append("ALTER TABLE project ADD COLUMN partner_amount VARCHAR(30)")
-        if "material_cost" not in columns:
-            statements.append("ALTER TABLE project ADD COLUMN material_cost VARCHAR(30)")
+        for column in ["start_date", "expected_end_date", "expected_hours", "partner_amount", "material_cost", "paid_amount"]:
+            if column not in columns:
+                statements.append(f"ALTER TABLE project ADD COLUMN {column} VARCHAR(30)")
         if statements:
             with db.engine.begin() as conn:
                 for statement in statements:
@@ -219,395 +229,217 @@ def inject_user():
 
 
 @app.route("/health")
-def health():
-    return {"status": "ok"}, 200
-
+def health(): return {"status": "ok"}, 200
 
 @app.route("/")
-def index():
-    return redirect(url_for("dashboard") if current_user() else url_for("login"))
-
+def index(): return redirect(url_for("dashboard") if current_user() else url_for("login"))
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
-        email = request.form.get("email", "").strip().lower()
-        password = request.form.get("password", "")
+        email = request.form.get("email", "").strip().lower(); password = request.form.get("password", "")
         u = User.query.filter_by(email=email).first()
         if u and check_password_hash(u.password_hash, password):
-            session.clear()
-            session["user_id"] = u.id
-            return redirect(url_for("dashboard"))
+            session.clear(); session["user_id"] = u.id; return redirect(url_for("dashboard"))
         flash("Ongeldige login.", "error")
     return render_template("login.html")
 
-
 @app.route("/forgot-password", methods=["GET", "POST"])
 def forgot_password():
-    if current_user():
-        return redirect(url_for("dashboard"))
+    if current_user(): return redirect(url_for("dashboard"))
     if request.method == "POST":
-        email = request.form.get("email", "").strip().lower()
-        user = User.query.filter_by(email=email).first()
-        if user:
-            existing = PasswordResetRequest.query.filter_by(user_id=user.id, resolved_at=None).first()
-            if not existing:
-                db.session.add(PasswordResetRequest(user_id=user.id))
-                db.session.commit()
-        flash("Je aanvraag is doorgegeven aan HUYS. De beheerder kan je wachtwoord handmatig aanpassen.", "success")
-        return redirect(url_for("login"))
+        email = request.form.get("email", "").strip().lower(); user = User.query.filter_by(email=email).first()
+        if user and not PasswordResetRequest.query.filter_by(user_id=user.id, resolved_at=None).first():
+            db.session.add(PasswordResetRequest(user_id=user.id)); db.session.commit()
+        flash("Je aanvraag is doorgegeven aan HUYS. De beheerder kan je wachtwoord handmatig aanpassen.", "success"); return redirect(url_for("login"))
     return render_template("forgot_password.html")
-
 
 @app.route("/register", methods=["GET", "POST"])
 def register():
-    if current_user():
-        return redirect(url_for("dashboard"))
+    if current_user(): return redirect(url_for("dashboard"))
     if request.method == "POST":
-        company_name = request.form.get("company_name", "").strip()
-        name = request.form.get("name", "").strip()
-        email = request.form.get("email", "").strip().lower()
-        password = request.form.get("password", "")
-        confirm = request.form.get("confirm_password", "")
-        if not company_name or not name or not email or len(password) < 8:
-            flash("Vul alle velden in. Het wachtwoord moet minstens 8 tekens bevatten.", "error")
-        elif password != confirm:
-            flash("De wachtwoorden zijn niet gelijk.", "error")
+        company_name=request.form.get("company_name","").strip(); name=request.form.get("name","").strip(); email=request.form.get("email","").strip().lower(); password=request.form.get("password",""); confirm=request.form.get("confirm_password","")
+        if not company_name or not name or not email or len(password)<8: flash("Vul alle velden in. Het wachtwoord moet minstens 8 tekens bevatten.","error")
+        elif password!=confirm: flash("De wachtwoorden zijn niet gelijk.","error")
         else:
-            error = create_partner(company_name, name, email, password)
-            if error:
-                flash(error, "error")
-            else:
-                flash("Account aangemaakt. Je kunt nu aanmelden.", "success")
-                return redirect(url_for("login"))
+            error=create_partner(company_name,name,email,password)
+            if error: flash(error,"error")
+            else: flash("Account aangemaakt. Je kunt nu aanmelden.","success"); return redirect(url_for("login"))
     return render_template("register.html")
 
-
 @app.route("/logout")
-def logout():
-    session.clear()
-    return redirect(url_for("login"))
-
+def logout(): session.clear(); return redirect(url_for("login"))
 
 @app.route("/dashboard")
 @login_required
 def dashboard():
-    u = current_user()
-    q = Project.query if u.role == "huys_admin" else Project.query.filter_by(company_id=u.company_id)
-    projects = q.order_by(Project.id.desc()).all()
-    stats = {
-        "active": sum(p.status not in ("Afgewerkt", "Gefactureerd", "Geweigerd") for p in projects),
-        "new": sum(p.status == "Nieuw" for p in projects),
-        "info": sum(p.status == "Wacht op info" for p in projects),
-        "done": sum(p.status == "Afgewerkt" for p in projects),
-    }
-    return render_template("dashboard.html", projects=projects, stats=stats)
+    u=current_user(); q=Project.query if u.role=="huys_admin" else Project.query.filter_by(company_id=u.company_id); projects=q.order_by(Project.id.desc()).all()
+    stats={"active":sum(p.status not in ("Afgewerkt","Gefactureerd","Geweigerd") for p in projects),"new":sum(p.status=="Nieuw" for p in projects),"info":sum(p.status=="Wacht op info" for p in projects),"done":sum(p.status=="Afgewerkt" for p in projects)}
+    return render_template("dashboard.html",projects=projects,stats=stats)
 
-
-@app.route("/projects/new", methods=["GET", "POST"])
+@app.route("/projects/new", methods=["GET","POST"])
 @login_required
 def new_project():
-    u = current_user()
-    if u.role == "huys_admin":
-        return redirect(url_for("dashboard"))
-    if request.method == "POST":
-        title = request.form.get("title", "").strip()
-        if not title:
-            flash("Projectnaam is verplicht.", "error")
-            return render_template("new_project.html")
-        p = Project(
-            company_id=u.company_id,
-            title=title,
-            reference=request.form.get("reference", "").strip(),
-            address=request.form.get("address", "").strip(),
-            contact_name=request.form.get("contact_name", "").strip(),
-            phone=request.form.get("phone", "").strip(),
-            desired_date=request.form.get("desired_date", "").strip(),
-            job_type=request.form.get("job_type", "").strip(),
-            priority=request.form.get("priority", "Normaal"),
-            description=request.form.get("description", "").strip(),
-            status="Nieuw",
-        )
-        db.session.add(p)
-        db.session.flush()
-        save_project_documents(p, request.files.getlist("documents"))
-        db.session.commit()
-        flash("Werf succesvol ingediend en wacht op beoordeling door HUYS.", "success")
-        return redirect(url_for("project_detail", project_id=p.id))
+    u=current_user()
+    if u.role=="huys_admin": return redirect(url_for("dashboard"))
+    if request.method=="POST":
+        title=request.form.get("title","").strip()
+        if not title: flash("Projectnaam is verplicht.","error"); return render_template("new_project.html")
+        p=Project(company_id=u.company_id,title=title,reference=request.form.get("reference","").strip(),address=request.form.get("address","").strip(),contact_name=request.form.get("contact_name","").strip(),phone=request.form.get("phone","").strip(),desired_date=request.form.get("desired_date","").strip(),job_type=request.form.get("job_type","").strip(),priority=request.form.get("priority","Normaal"),description=request.form.get("description","").strip(),status="Nieuw")
+        db.session.add(p); db.session.flush(); save_project_documents(p,request.files.getlist("documents")); db.session.commit(); flash("Werf succesvol ingediend en wacht op beoordeling door HUYS.","success"); return redirect(url_for("project_detail",project_id=p.id))
     return render_template("new_project.html")
-
 
 @app.route("/projects/<int:project_id>")
 @login_required
-def project_detail(project_id):
-    return render_template("project_detail.html", project=project_or_404(project_id))
+def project_detail(project_id): return render_template("project_detail.html",project=project_or_404(project_id))
 
-
-@app.route("/projects/<int:project_id>/edit", methods=["GET", "POST"])
+@app.route("/projects/<int:project_id>/edit", methods=["GET","POST"])
 @login_required
 def edit_project(project_id):
-    p = project_or_404(project_id)
-    if request.method == "POST":
-        if not update_project_from_form(p):
-            flash("Project / klant is verplicht.", "error")
-            return render_template("edit_project.html", project=p)
-        save_project_documents(p, request.files.getlist("documents"))
-        db.session.commit()
-        flash("Werfgegevens zijn aangepast.", "success")
-        return redirect(url_for("project_detail", project_id=p.id))
-    return render_template("edit_project.html", project=p)
+    p=project_or_404(project_id)
+    if request.method=="POST":
+        if not update_project_from_form(p): flash("Project / klant is verplicht.","error"); return render_template("edit_project.html",project=p)
+        save_project_documents(p,request.files.getlist("documents")); db.session.commit(); flash("Werfgegevens zijn aangepast.","success"); return redirect(url_for("project_detail",project_id=p.id))
+    return render_template("edit_project.html",project=p)
 
-
-@app.route("/projects/<int:project_id>/documents/add", methods=["POST"])
+@app.route("/projects/<int:project_id>/documents/add",methods=["POST"])
 @login_required
 def add_project_documents(project_id):
-    p = project_or_404(project_id)
-    saved = save_project_documents(p, request.files.getlist("documents"))
-    if saved:
-        db.session.commit()
-        flash(f"{saved} bijlage(n) toegevoegd.", "success")
-    else:
-        db.session.rollback()
-        flash("Geen geldige bijlagen geselecteerd.", "error")
-    return redirect(url_for("project_detail", project_id=p.id))
+    p=project_or_404(project_id); saved=save_project_documents(p,request.files.getlist("documents"))
+    if saved: db.session.commit(); flash(f"{saved} bijlage(n) toegevoegd.","success")
+    else: db.session.rollback(); flash("Geen geldige bijlagen geselecteerd.","error")
+    return redirect(url_for("project_detail",project_id=p.id))
 
-
-@app.route("/projects/<int:project_id>/communication", methods=["POST"])
+@app.route("/projects/<int:project_id>/communication",methods=["POST"])
 @login_required
 def add_project_message(project_id):
-    p = project_or_404(project_id)
-    u = current_user()
-    message = request.form.get("message", "").strip()
-    if not message:
-        flash("Vul een bericht of werfverslag in.", "error")
-        return redirect(url_for("project_detail", project_id=p.id))
-    if len(message) > 10000:
-        flash("Het bericht is te lang. Gebruik maximaal 10.000 tekens.", "error")
-        return redirect(url_for("project_detail", project_id=p.id))
-    db.session.add(ProjectMessage(project_id=p.id, user_id=u.id, author_name=u.name, author_role=u.role, message=message))
-    db.session.commit()
-    flash("Bericht / werfverslag opgeslagen in het partnerportaal.", "success")
-    return redirect(url_for("project_detail", project_id=p.id))
+    p=project_or_404(project_id); u=current_user(); message=request.form.get("message","").strip()
+    if not message: flash("Vul een bericht of werfverslag in.","error"); return redirect(url_for("project_detail",project_id=p.id))
+    if len(message)>10000: flash("Het bericht is te lang. Gebruik maximaal 10.000 tekens.","error"); return redirect(url_for("project_detail",project_id=p.id))
+    db.session.add(ProjectMessage(project_id=p.id,user_id=u.id,author_name=u.name,author_role=u.role,message=message)); db.session.commit(); flash("Bericht / werfverslag opgeslagen in het partnerportaal.","success"); return redirect(url_for("project_detail",project_id=p.id))
 
-
-@app.route("/projects/<int:project_id>/partner-estimate", methods=["POST"])
+@app.route("/projects/<int:project_id>/partner-estimate",methods=["POST"])
 @login_required
 def set_partner_estimate(project_id):
-    p = project_or_404(project_id)
-    u = current_user()
-    if u.role == "huys_admin":
-        abort(403)
-    p.expected_hours = request.form.get("expected_hours", "").strip()
-    p.partner_amount = request.form.get("partner_amount", "").strip()
-    p.material_cost = request.form.get("material_cost", "").strip()
-    db.session.commit()
-    flash("Raming voor deze werf opgeslagen.", "success")
-    return redirect(url_for("project_detail", project_id=p.id))
+    p=project_or_404(project_id); u=current_user()
+    if u.role=="huys_admin": abort(403)
+    p.expected_hours=request.form.get("expected_hours","").strip(); p.partner_amount=request.form.get("partner_amount","").strip(); p.material_cost=request.form.get("material_cost","").strip(); db.session.commit(); flash("Raming voor deze werf opgeslagen.","success"); return redirect(url_for("project_detail",project_id=p.id))
 
-
-@app.route("/projects/<int:project_id>/start-date", methods=["POST"])
+@app.route("/projects/<int:project_id>/start-date",methods=["POST"])
 @admin_required
 def set_start_date(project_id):
-    p = db.session.get(Project, project_id)
-    if not p:
-        abort(404)
-    p.start_date = request.form.get("start_date", "").strip()
-    p.expected_end_date = request.form.get("expected_end_date", "").strip()
-    db.session.commit()
-    flash("Inplantdatum en verwachte einddatum opgeslagen.", "success")
-    return redirect(url_for("project_detail", project_id=p.id))
+    p=db.session.get(Project,project_id)
+    if not p: abort(404)
+    p.start_date=request.form.get("start_date","").strip(); p.expected_end_date=request.form.get("expected_end_date","").strip(); db.session.commit(); flash("Inplantdatum en verwachte einddatum opgeslagen.","success"); return redirect(url_for("project_detail",project_id=p.id))
 
-
-@app.route("/projects/<int:project_id>/status", methods=["POST"])
+@app.route("/projects/<int:project_id>/status",methods=["POST"])
 @admin_required
 def change_status(project_id):
-    p = db.session.get(Project, project_id)
-    if not p:
-        abort(404)
-    statuses = ["Nieuw", "Bekijken", "Wacht op info", "Goedgekeurd", "Geweigerd", "Ingepland", "In uitvoering", "Afgewerkt", "Gefactureerd"]
-    status = request.form.get("status")
-    if status not in statuses:
-        abort(400)
-    p.status = status
-    db.session.commit()
-    flash(f"Werfstatus gewijzigd naar {status}.", "success")
-    return redirect(url_for("project_detail", project_id=p.id))
+    p=db.session.get(Project,project_id)
+    if not p: abort(404)
+    statuses=["Nieuw","Bekijken","Wacht op info","Goedgekeurd","Geweigerd","Ingepland","In uitvoering","Afgewerkt","Gefactureerd"]; status=request.form.get("status")
+    if status not in statuses: abort(400)
+    p.status=status; db.session.commit(); flash(f"Werfstatus gewijzigd naar {status}.","success"); return redirect(url_for("project_detail",project_id=p.id))
 
-
-@app.route("/projects/<int:project_id>/accept", methods=["POST"])
+@app.route("/projects/<int:project_id>/accept",methods=["POST"])
 @admin_required
 def accept_project(project_id):
-    p = db.session.get(Project, project_id)
-    if not p:
-        abort(404)
-    p.status = "Goedgekeurd"
-    db.session.commit()
-    flash("Werf geaccepteerd.", "success")
-    return redirect(url_for("project_detail", project_id=p.id))
+    p=db.session.get(Project,project_id)
+    if not p: abort(404)
+    p.status="Goedgekeurd"; db.session.commit(); flash("Werf geaccepteerd.","success"); return redirect(url_for("project_detail",project_id=p.id))
 
-
-@app.route("/projects/<int:project_id>/reject", methods=["POST"])
+@app.route("/projects/<int:project_id>/reject",methods=["POST"])
 @admin_required
 def reject_project(project_id):
-    p = db.session.get(Project, project_id)
-    if not p:
-        abort(404)
-    p.status = "Geweigerd"
-    db.session.commit()
-    flash("Werf geweigerd.", "success")
-    return redirect(url_for("project_detail", project_id=p.id))
+    p=db.session.get(Project,project_id)
+    if not p: abort(404)
+    p.status="Geweigerd"; db.session.commit(); flash("Werf geweigerd.","success"); return redirect(url_for("project_detail",project_id=p.id))
 
+@app.route("/admin/finances")
+@admin_required
+def finances():
+    accepted_statuses=["Goedgekeurd","Ingepland","In uitvoering","Afgewerkt","Gefactureerd"]
+    projects=Project.query.filter(Project.status.in_(accepted_statuses)).order_by(Project.id.desc()).all(); rows=[]; total=paid=open_amount=0.0
+    for p in projects:
+        amount=money_value(p.partner_amount); paid_value=min(money_value(p.paid_amount),amount) if amount else money_value(p.paid_amount); outstanding=max(0.0,amount-paid_value)
+        payment_status="Betaald" if amount>0 and outstanding<0.005 else ("Deels betaald" if paid_value>0 else "Openstaand")
+        rows.append({"project":p,"amount":amount,"material":money_value(p.material_cost),"paid":paid_value,"outstanding":outstanding,"payment_status":payment_status}); total+=amount; paid+=paid_value; open_amount+=outstanding
+    return render_template("finances.html",rows=rows,total=total,paid=paid,open_amount=open_amount)
+
+@app.route("/admin/finances/<int:project_id>/payment",methods=["POST"])
+@admin_required
+def set_project_payment(project_id):
+    p=db.session.get(Project,project_id)
+    if not p: abort(404)
+    p.paid_amount=f"{money_value(request.form.get('paid_amount','')):.2f}"; db.session.commit(); flash("Betaald bedrag bijgewerkt.","success"); return redirect(url_for("finances"))
 
 @app.route("/documents/<int:doc_id>")
 @login_required
 def download_document(doc_id):
-    d = db.session.get(Document, doc_id)
-    if not d or not can_access_project(d.project):
-        abort(404)
-    return send_from_directory(
-        UPLOAD_ROOT / str(d.project.company_id) / str(d.project.id),
-        d.stored_name,
-        as_attachment=True,
-        download_name=d.original_name,
-    )
+    d=db.session.get(Document,doc_id)
+    if not d or not can_access_project(d.project): abort(404)
+    return send_from_directory(UPLOAD_ROOT/str(d.project.company_id)/str(d.project.id),d.stored_name,as_attachment=True,download_name=d.original_name)
 
-
-@app.route("/admin/companies", methods=["GET", "POST"])
+@app.route("/admin/companies",methods=["GET","POST"])
 @admin_required
 def companies():
-    if request.method == "POST":
-        company_name = request.form.get("company_name", "").strip()
-        name = request.form.get("name", "").strip()
-        email = request.form.get("email", "").strip().lower()
-        password = request.form.get("password", "")
-        if not company_name or not name or not email or len(password) < 8:
-            flash("Vul alle velden correct in. Wachtwoord minimaal 8 tekens.", "error")
-            return redirect(url_for("companies"))
-        error = create_partner(company_name, name, email, password)
-        if error:
-            flash(error, "error")
-        else:
-            flash("Partner en gebruiker succesvol aangemaakt.", "success")
-        return redirect(url_for("companies"))
-
-    rows = []
-    for company in Company.query.order_by(Company.name).all():
-        rows.append({
-            "company": company,
-            "user_list": User.query.filter_by(company_id=company.id).order_by(User.name).all(),
-            "projects": Project.query.filter_by(company_id=company.id).count(),
-        })
-    return render_template("companies.html", rows=rows)
-
+    if request.method=="POST":
+        company_name=request.form.get("company_name","").strip(); name=request.form.get("name","").strip(); email=request.form.get("email","").strip().lower(); password=request.form.get("password","")
+        if not company_name or not name or not email or len(password)<8: flash("Vul alle velden correct in. Wachtwoord minimaal 8 tekens.","error"); return redirect(url_for("companies"))
+        error=create_partner(company_name,name,email,password); flash(error if error else "Partner en gebruiker succesvol aangemaakt.","error" if error else "success"); return redirect(url_for("companies"))
+    rows=[]
+    for company in Company.query.order_by(Company.name).all(): rows.append({"company":company,"user_list":User.query.filter_by(company_id=company.id).order_by(User.name).all(),"projects":Project.query.filter_by(company_id=company.id).count()})
+    return render_template("companies.html",rows=rows)
 
 @app.route("/admin/password-requests")
 @admin_required
-def password_requests():
-    requests = PasswordResetRequest.query.order_by(
-        PasswordResetRequest.resolved_at.is_(None).desc(),
-        PasswordResetRequest.requested_at.desc(),
-    ).all()
-    return render_template("password_requests.html", requests=requests)
+def password_requests(): return render_template("password_requests.html",requests=PasswordResetRequest.query.order_by(PasswordResetRequest.resolved_at.is_(None).desc(),PasswordResetRequest.requested_at.desc()).all())
 
-
-@app.route("/admin/users/<int:user_id>/password", methods=["POST"])
+@app.route("/admin/users/<int:user_id>/password",methods=["POST"])
 @admin_required
 def admin_change_password(user_id):
-    user = db.session.get(User, user_id)
-    if not user:
-        abort(404)
-    password = request.form.get("password", "")
-    confirm = request.form.get("confirm_password", "")
-    if len(password) < 8:
-        flash("Het nieuwe wachtwoord moet minstens 8 tekens bevatten.", "error")
-    elif password != confirm:
-        flash("De wachtwoorden zijn niet gelijk.", "error")
-    else:
-        user.password_hash = generate_password_hash(password)
-        PasswordResetRequest.query.filter_by(user_id=user.id, resolved_at=None).update({"resolved_at": datetime.utcnow()}, synchronize_session=False)
-        db.session.commit()
-        flash(f"Wachtwoord van {user.name} is aangepast. De aanvraag is afgehandeld.", "success")
+    user=db.session.get(User,user_id)
+    if not user: abort(404)
+    password=request.form.get("password",""); confirm=request.form.get("confirm_password","")
+    if len(password)<8: flash("Het nieuwe wachtwoord moet minstens 8 tekens bevatten.","error")
+    elif password!=confirm: flash("De wachtwoorden zijn niet gelijk.","error")
+    else: user.password_hash=generate_password_hash(password); PasswordResetRequest.query.filter_by(user_id=user.id,resolved_at=None).update({"resolved_at":datetime.utcnow()},synchronize_session=False); db.session.commit(); flash(f"Wachtwoord van {user.name} is aangepast. De aanvraag is afgehandeld.","success")
     return redirect(url_for("password_requests"))
 
-
-@app.route("/admin/users/<int:user_id>/delete", methods=["POST"])
+@app.route("/admin/users/<int:user_id>/delete",methods=["POST"])
 @admin_required
 def delete_user(user_id):
-    user = db.session.get(User, user_id)
-    if not user or user.role == "huys_admin":
-        abort(404)
-    user_name = user.name
-    PasswordResetRequest.query.filter_by(user_id=user.id).delete(synchronize_session=False)
-    ProjectMessage.query.filter_by(user_id=user.id).update({"user_id": None}, synchronize_session=False)
-    db.session.delete(user)
-    db.session.commit()
-    flash(f"Account van {user_name} is verwijderd.", "success")
-    return redirect(url_for("companies"))
+    user=db.session.get(User,user_id)
+    if not user or user.role=="huys_admin": abort(404)
+    user_name=user.name; PasswordResetRequest.query.filter_by(user_id=user.id).delete(synchronize_session=False); ProjectMessage.query.filter_by(user_id=user.id).update({"user_id":None},synchronize_session=False); db.session.delete(user); db.session.commit(); flash(f"Account van {user_name} is verwijderd.","success"); return redirect(url_for("companies"))
 
-
-@app.route("/admin/companies/<int:company_id>/delete", methods=["POST"])
+@app.route("/admin/companies/<int:company_id>/delete",methods=["POST"])
 @admin_required
 def delete_company(company_id):
-    c = db.session.get(Company, company_id)
-    if not c:
-        abort(404)
-    company_name = c.name
-    projects = Project.query.filter_by(company_id=c.id).all()
-    user_ids = [u.id for u in User.query.filter_by(company_id=c.id).all()]
-    if user_ids:
-        PasswordResetRequest.query.filter(PasswordResetRequest.user_id.in_(user_ids)).delete(synchronize_session=False)
-        ProjectMessage.query.filter(ProjectMessage.user_id.in_(user_ids)).update({"user_id": None}, synchronize_session=False)
-    for p in projects:
-        db.session.delete(p)
-    User.query.filter_by(company_id=c.id).delete(synchronize_session=False)
-    db.session.delete(c)
-    db.session.commit()
-    shutil.rmtree(UPLOAD_ROOT / str(company_id), ignore_errors=True)
-    flash(f"Partner {company_name} en alle gekoppelde accounts en werven zijn verwijderd.", "success")
-    return redirect(url_for("companies"))
-
+    c=db.session.get(Company,company_id)
+    if not c: abort(404)
+    company_name=c.name; projects=Project.query.filter_by(company_id=c.id).all(); user_ids=[u.id for u in User.query.filter_by(company_id=c.id).all()]
+    if user_ids: PasswordResetRequest.query.filter(PasswordResetRequest.user_id.in_(user_ids)).delete(synchronize_session=False); ProjectMessage.query.filter(ProjectMessage.user_id.in_(user_ids)).update({"user_id":None},synchronize_session=False)
+    for p in projects: db.session.delete(p)
+    User.query.filter_by(company_id=c.id).delete(synchronize_session=False); db.session.delete(c); db.session.commit(); shutil.rmtree(UPLOAD_ROOT/str(company_id),ignore_errors=True); flash(f"Partner {company_name} en alle gekoppelde accounts en werven zijn verwijderd.","success"); return redirect(url_for("companies"))
 
 @app.errorhandler(403)
-def forbidden(_):
-    return render_template("error.html", code=403, message="Geen toegang."), 403
-
-
+def forbidden(_): return render_template("error.html",code=403,message="Geen toegang."),403
 @app.errorhandler(404)
-def not_found(_):
-    return render_template("error.html", code=404, message="Niet gevonden of geen toegang."), 404
-
+def not_found(_): return render_template("error.html",code=404,message="Niet gevonden of geen toegang."),404
 
 def seed_demo_data():
-    if Company.query.count():
-        return
-    a = Company(name="Bouwbedrijf De Smet")
-    b = Company(name="Construct Groep")
-    db.session.add_all([a, b])
-    db.session.flush()
-    db.session.add_all([
-        User(name="Demo De Smet", email="desmet@demo.be", password_hash=generate_password_hash("demo1234"), role="partner_admin", company_id=a.id),
-        User(name="Demo Construct", email="construct@demo.be", password_hash=generate_password_hash("demo1234"), role="partner_admin", company_id=b.id),
-    ])
-    db.session.commit()
-
+    if Company.query.count(): return
+    a=Company(name="Bouwbedrijf De Smet"); b=Company(name="Construct Groep"); db.session.add_all([a,b]); db.session.flush(); db.session.add_all([User(name="Demo De Smet",email="desmet@demo.be",password_hash=generate_password_hash("demo1234"),role="partner_admin",company_id=a.id),User(name="Demo Construct",email="construct@demo.be",password_hash=generate_password_hash("demo1234"),role="partner_admin",company_id=b.id)]); db.session.commit()
 
 def bootstrap_admin():
-    email = os.environ.get("ADMIN_EMAIL", "").strip().lower()
-    password = os.environ.get("ADMIN_PASSWORD", "")
-    name = os.environ.get("ADMIN_NAME", "HUYS Admin").strip() or "HUYS Admin"
-    if not email or not password or User.query.filter_by(role="huys_admin").first():
-        return
-    db.session.add(User(name=name, email=email, password_hash=generate_password_hash(password), role="huys_admin", company_id=None))
-    db.session.commit()
-
+    email=os.environ.get("ADMIN_EMAIL","").strip().lower(); password=os.environ.get("ADMIN_PASSWORD",""); name=os.environ.get("ADMIN_NAME","HUYS Admin").strip() or "HUYS Admin"
+    if not email or not password or User.query.filter_by(role="huys_admin").first(): return
+    db.session.add(User(name=name,email=email,password_hash=generate_password_hash(password),role="huys_admin",company_id=None)); db.session.commit()
 
 with app.app_context():
-    db.create_all()
-    ensure_schema()
-    if os.environ.get("SEED_DEMO_DATA", "0") == "1":
-        seed_demo_data()
+    db.create_all(); ensure_schema()
+    if os.environ.get("SEED_DEMO_DATA","0")=="1": seed_demo_data()
     bootstrap_admin()
 
-
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", "5000")), debug=os.environ.get("FLASK_DEBUG", "0") == "1")
+if __name__=="__main__": app.run(host="0.0.0.0",port=int(os.environ.get("PORT","5000")),debug=os.environ.get("FLASK_DEBUG","0")=="1")
