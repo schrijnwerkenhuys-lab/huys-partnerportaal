@@ -63,6 +63,9 @@ class Project(db.Model):
     desired_date = db.Column(db.String(30))
     start_date = db.Column(db.String(30))
     expected_end_date = db.Column(db.String(30))
+    expected_hours = db.Column(db.String(30))
+    partner_amount = db.Column(db.String(30))
+    material_cost = db.Column(db.String(30))
     job_type = db.Column(db.String(100))
     priority = db.Column(db.String(30), nullable=False, default="Normaal")
     description = db.Column(db.Text)
@@ -194,6 +197,12 @@ def ensure_schema():
             statements.append("ALTER TABLE project ADD COLUMN start_date VARCHAR(30)")
         if "expected_end_date" not in columns:
             statements.append("ALTER TABLE project ADD COLUMN expected_end_date VARCHAR(30)")
+        if "expected_hours" not in columns:
+            statements.append("ALTER TABLE project ADD COLUMN expected_hours VARCHAR(30)")
+        if "partner_amount" not in columns:
+            statements.append("ALTER TABLE project ADD COLUMN partner_amount VARCHAR(30)")
+        if "material_cost" not in columns:
+            statements.append("ALTER TABLE project ADD COLUMN material_cost VARCHAR(30)")
         if statements:
             with db.engine.begin() as conn:
                 for statement in statements:
@@ -378,6 +387,21 @@ def add_project_message(project_id):
     db.session.add(ProjectMessage(project_id=p.id, user_id=u.id, author_name=u.name, author_role=u.role, message=message))
     db.session.commit()
     flash("Bericht / werfverslag opgeslagen in het partnerportaal.", "success")
+    return redirect(url_for("project_detail", project_id=p.id))
+
+
+@app.route("/projects/<int:project_id>/partner-estimate", methods=["POST"])
+@login_required
+def set_partner_estimate(project_id):
+    p = project_or_404(project_id)
+    u = current_user()
+    if u.role == "huys_admin":
+        abort(403)
+    p.expected_hours = request.form.get("expected_hours", "").strip()
+    p.partner_amount = request.form.get("partner_amount", "").strip()
+    p.material_cost = request.form.get("material_cost", "").strip()
+    db.session.commit()
+    flash("Raming voor deze werf opgeslagen.", "success")
     return redirect(url_for("project_detail", project_id=p.id))
 
 
