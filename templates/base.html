@@ -14,6 +14,7 @@
       <a href="{{ url_for('dashboard') }}">Dashboard</a>
       {% if me.role != 'huys_admin' %}<a href="{{ url_for('new_project') }}">Nieuwe werf</a>{% endif %}
       {% if me.role == 'huys_admin' %}<a href="{{ url_for('companies') }}">Partnerbedrijven</a>{% endif %}
+      {% if me.role == 'huys_admin' %}<a href="{{ url_for('finances') }}">Financiën</a>{% endif %}
       {% if me.role == 'huys_admin' %}<a href="{{ url_for('password_requests') }}">Wachtwoordaanvragen{% if reset_request_count %} ({{ reset_request_count }}){% endif %}</a>{% endif %}
       <a href="{{ url_for('logout') }}">Uitloggen</a>
     </nav>
