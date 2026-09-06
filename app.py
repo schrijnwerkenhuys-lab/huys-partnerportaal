@@ -62,6 +62,7 @@ class Project(db.Model):
     phone = db.Column(db.String(80))
     desired_date = db.Column(db.String(30))
     start_date = db.Column(db.String(30))
+    expected_end_date = db.Column(db.String(30))
     job_type = db.Column(db.String(100))
     priority = db.Column(db.String(30), nullable=False, default="Normaal")
     description = db.Column(db.Text)
@@ -188,9 +189,15 @@ def ensure_schema():
     inspector = inspect(db.engine)
     if "project" in inspector.get_table_names():
         columns = {c["name"] for c in inspector.get_columns("project")}
+        statements = []
         if "start_date" not in columns:
+            statements.append("ALTER TABLE project ADD COLUMN start_date VARCHAR(30)")
+        if "expected_end_date" not in columns:
+            statements.append("ALTER TABLE project ADD COLUMN expected_end_date VARCHAR(30)")
+        if statements:
             with db.engine.begin() as conn:
-                conn.execute(text("ALTER TABLE project ADD COLUMN start_date VARCHAR(30)"))
+                for statement in statements:
+                    conn.execute(text(statement))
 
 
 @app.context_processor
@@ -381,8 +388,9 @@ def set_start_date(project_id):
     if not p:
         abort(404)
     p.start_date = request.form.get("start_date", "").strip()
+    p.expected_end_date = request.form.get("expected_end_date", "").strip()
     db.session.commit()
-    flash("Effectieve startdatum opgeslagen.", "success")
+    flash("Inplantdatum en verwachte einddatum opgeslagen.", "success")
     return redirect(url_for("project_detail", project_id=p.id))
 
 
